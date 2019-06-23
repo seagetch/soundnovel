@@ -1,0 +1,31 @@
+paths:
+  Music: 後輩彼女、ゆずきと癒されおうちデート♪/mp3
+  Images: https://img.dlsite.jp/modpub/images2/work/doujin/RJ255000/
+
+screen:
+  size: [560, 420]
+  menu_location: [50, 240]
+  menu_layout:
+    direction: vertical
+    offset: [0, 30]
+  menu_color:
+    base: [128, 128, 64]
+    hover: [244, 244, 0]
+    selected: [244, 0, 0]
+  menu_size: 20
+
+scenario:
+- sub-scenario
+- 本編: [play-one, "*", [exit]]
+  終了:       [nop, [exit]]
+- [jump, 本編]
+
+image_map:
+  title: [RJ254160_img_main.jpg]
+  "*": [RJ254160_img_main.jpg]
+
+modes:
+- 本編
+
+failure:
+- 終了

@@ -1,0 +1,40 @@
+paths:
+  Music: メイドと暮らそ♪くるみちゃんと一緒/mp3
+  Images: https://img.dlsite.jp/modpub/images2/work/doujin/RJ244000
+
+screen:
+  size: [560, 420]
+  menu_location: [50, 150]
+  menu_layout:
+    direction: vertical
+    offset: [0, 30]
+  menu_color:
+    base: [128, 128, 64]
+    hover: [244, 244, 0]
+    selected: [244, 0, 0]
+  menu_size: 20
+
+scenario:
+- sub-scenario
+- お風呂上がり: [play-one, "01*", [jump, 綿棒で耳かき]]
+  綿棒で耳かき: [play-one, "02*", [jump, 爪のお手入れ]]
+  爪のお手入れ: [play-one, "03*", [jump, 添い寝]]
+  添い寝:      [play-one, "04*", [exit]]
+  終了:        [nop, [exit]]
+- [jump-by, mode, {お風呂上がり: お風呂上がり, 綿棒で耳かき: 綿棒で耳かき, 爪のお手入れ: 爪のお手入れ, 添い寝: 添い寝}]
+
+image_map:
+  title: [RJ243414_img_main.jpg]
+  "01*": [RJ243414_img_main.jpg]
+  "02*": [RJ243414_img_main.jpg]
+  "03*": [RJ243414_img_main.jpg]
+  "04*": [RJ243414_img_main.jpg]
+
+modes:
+- お風呂上がり
+- 綿棒で耳かき
+- 爪のお手入れ
+- 添い寝
+
+failure:
+- 終了

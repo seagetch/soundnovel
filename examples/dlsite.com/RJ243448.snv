@@ -1,0 +1,37 @@
+paths:
+  Music: 幼馴染みとドキドキ押入れナイト！？in修学旅行/mp3
+  Images: https://img.dlsite.jp/modpub/images2/work/doujin/RJ244000/
+
+screen:
+  size: [560, 420]
+  menu_location: [50, 240]
+  menu_layout:
+    direction: vertical
+    offset: [0, 30]
+  menu_color:
+    base: [128, 128, 64]
+    hover: [244, 244, 0]
+    selected: [244, 0, 0]
+  menu_size: 20
+
+scenario:
+- sub-scenario
+- ハプニング!:        [play-one, "Tr1*", [jump, ドキドキ押入れタイム]]
+  ドキドキ押入れタイム: [play-one, "Tr2*", [jump, 先生の部屋]]
+  先生の部屋:        [play-one, "Tr3*", [exit]]
+  終了:             [nop, [exit]]
+- [jump-by, mode, {ハプニング!: ハプニング!, ドキドキ押入れタイム: ドキドキ押入れタイム, 先生の部屋: 先生の部屋}]
+
+image_map:
+  title: [RJ243448_img_main.jpg]
+  "Tr1*": [RJ243448_img_main.jpg]
+  "Tr2*": [RJ243448_img_main.jpg]
+  "Tr3*": [RJ243448_img_main.jpg]
+
+modes:
+- ハプニング!
+- ドキドキ押入れタイム
+- 先生の部屋
+
+failure:
+- 終了

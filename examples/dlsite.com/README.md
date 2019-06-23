@@ -39,3 +39,6 @@ DLsiteさんの公式作品で、無料で配られている物を対象とし�
 ```
  $ /home/test2/soundnovel.sh /home/test/RJ243414.snv
 ```
+
+## その他
+.snvファイルをMIMEに登録して、soundnovel.shを関連付けて起動するようになると色々と楽になります。

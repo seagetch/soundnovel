@@ -1,7 +1,10 @@
-import os
+import os, io, re
 import pygame
 from pygame.locals import *
-
+try:
+    from urllib2 import urlopen #python2
+except ImportError:
+    from urllib.request import urlopen #python3
 
 class ImageCache:
     def __init__(self,screen):
@@ -43,10 +46,17 @@ class Background:
                  int(w * truncate[1][0]), int(h * truncate[1][1]))
         return img.subsurface(rect2)
         
+    def load_single_file(self, filename):
+        if re.match("^http(s)://", filename):
+            file = io.BytesIO(urlopen(filename).read())
+            return pygame.image.load(file).convert_alpha()
+        else:
+            return pygame.image.load(filename).convert_alpha()    
+
     def tile_load(self, files, horizontal=False, truncate=None):
         print("load images[%d]"%len(files))
         try:
-            imgs = [pygame.image.load(f).convert_alpha() for f in files]
+            imgs = [self.load_single_file(f) for f in files]
             if truncate:
                 imgs = [self.get_subsurface(img, truncate) for img in imgs]
                 
@@ -83,7 +93,7 @@ class Background:
             
     def load(self, filename):
         (w,h) = self.screen.get_size()
-        self.img = pygame.image.load(filename).convert_alpha()
+        self.img = self.load_single_file(filename)
         rect_img = self.img.get_rect()
         w2 = rect_img.width * h / rect_img.height
         h2 = rect_img.height * w / rect_img.width

@@ -41,7 +41,9 @@ class Scenario:
             setattr(self, k, v)
         self.situation_change = 50
         self.music_path = os.path.join(root_path, self.paths.get("Music").encode("utf-8"))
-        self.image_path = os.path.join(root_path, self.paths.get("Images").encode("utf-8"))
+        self.image_path = self.paths.get("Images").encode("utf-8")
+        if not re.match("^http(s)://", self.image_path):
+            self.image_path = os.path.join(root_path, self.image_path)
         self.SubScenario = []
         self.variables = {}
 
@@ -139,7 +141,7 @@ class Scenario:
             self.SubScenario.pop()
             self.states.pop()
             self.histories.pop()
-            next_name = next_info[1] if len(next_info) > 0 else None
+            next_name = next_info[1] if len(next_info) >= 2 else None
             print("Exit [%d]"%len(self.states))
             if len(self.states) > 0:
                 self.states[-1] = next_name

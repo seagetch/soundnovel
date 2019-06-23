@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ROOT_PATH=$(dirname $0)
 LINK_PATH=$(readlink $0)

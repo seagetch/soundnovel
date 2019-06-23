@@ -24,7 +24,6 @@ class Text:
         if not fontname:
             fontname = Text.search_fonts("cjk")[0]
 
-        print("Font: font name = %s"%fontname)
         fontname = pygame.font.match_font(fontname)
 
         self.screen = screen

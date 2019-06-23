@@ -15,10 +15,8 @@ screen:
   menu_size: 20
 
 scenario:
-- sub-scenario
-- 本編: [play-one, "*", [exit]]
-  終了:       [nop, [exit]]
-- [jump, 本編]
+- [play-one, "*"]
+- [exit]
 
 image_map:
   title: [RJ254160_img_main.jpg]

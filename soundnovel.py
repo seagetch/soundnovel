@@ -12,17 +12,7 @@ import codecs
 
 import pygame
 from pygame.locals import *
-
 import Media
-
-#import pydub
-#import fcntl
-#import ffmpeg
-#import threading
-#import datetime
-#import math
-#import wave
-#import mutagen
 
 import yaml
 
@@ -36,6 +26,7 @@ class Scenario:
     PlayOne = "play-one"
     Select  = "select"
     Ask     = "ask"
+    Nop     = "nop"
     SubScenario = "sub-scenario"
     
     Jump     = "jump"
@@ -190,25 +181,31 @@ class Scenario:
             if len(self.states) > 0:
                 print("STATE=%s"%self.states[-1])
                 pass
-            action, content, next = current_scenario
+            action = current_scenario[0]
             print("ACTIONS=%s"%(action,))
             if action == Scenario.SubScenario:
+                content, next = current_scenario[1:]
                 print("Push SubScenario %s"%content)
                 self.SubScenario.append(content)
                 self.states.append(None)
                 self.histories.append([])
             elif action == Scenario.PlayAll:
+                content, next = current_scenario[1:]
                 sounds,images = self.list_files(self.states[-1])
                 for i in range(len(sounds)):
                     yield (sounds[i], self.get_image_path(images, i))
             elif action == Scenario.PlayOne:
+                content, next = current_scenario[1:]
                 _, filename = self.select_action_rand(self.states[-1])
                 yield filename
             elif action == Scenario.Ask:
+                content, next = current_scenario[1:]
                 options = content
                 yield (None, options)
             elif action == Scenario.Select:
-                pass
+                content, next = current_scenario[1:]
+            elif action == Scenario.Nop:
+                next = current_scenario[1]
             filename = self.transit_to_next(next)
             if filename:
                 yield filename
@@ -376,12 +373,12 @@ class GUI:
         text_cache = Media.TextCache(screen)
         
         operations = [
-          {"Previous": ["|<<", "Previous"]},
-          {"Backward": ["<<", "Backward"]},
-          {"Pause": ["||", "Play"], "Play": [">", "Pause"] },
-          {"Forward": [">>", "Forward"]},
-          {"Next": [">>|", "Next"]},
-          {"Cancel": ["X", "Cancel"]}
+          {"Previous": ["⏮", "Previous"]},
+          {"Backward": ["⏪", "Backward"]},
+          {"Pause": ["⏸", "Play"], "Play": ["⏵", "Pause"] },
+          {"Forward": ["⏩", "Forward"]},
+          {"Next": ["⏭", "Next"]},
+          {"Cancel": ["⏹", "Cancel"]}
         ]
         operation_states = [
           "Previous", "Backward", "Pause", "Forward", "Next", "Cancel"
@@ -390,16 +387,17 @@ class GUI:
 
         (w,h) = screen.get_size()
         step_x = w / (len(operations) - 1)
-        font_size = step_x / 2
+        font_size = int(step_x / 1.2)
         x = step_x / 2 - (font_size / 2)
         y = h / 2 - (font_size / 2)
         opr_color = [244, 244, 244]
+        font = Media.Text.search_fonts("symbols2")[0]
         for i, o in enumerate(operation_states[:-1]):
-            text = text_cache.get(operations[i][o][0].decode("utf-8"), opr_color, font_size)
+            text = text_cache.get(operations[i][o][0].decode("utf-8"), opr_color, fontsize=font_size, fontname = font)
             text.move(x, y)
             clickables.append(Media.ClickField(text.get_rect(), i))
             x += step_x
-        text = text_cache.get(operations[-1]["Cancel"][0].decode("utf-8"), opr_color, font_size / 2)
+        text = text_cache.get(operations[-1]["Cancel"][0].decode("utf-8"), opr_color, font_size / 2, fontname = font)
         text.move(10, 10)
         clickables.append(Media.ClickField(text.get_rect(), len(operations) - 1))
         clickables.append(Media.ClickField(pygame.Rect(0, h - 32, w, 32), -1))
@@ -461,7 +459,7 @@ class GUI:
                                         function_scope.show_progress = False
                                     o = operation_states[i]
                                     icon = operations[i][o][0].decode("utf-8")
-                                    text = text_cache.get(icon, opr_color, font_size)
+                                    text = text_cache.get(icon, opr_color, font_size, font)
                                     text.blit(target.rect.left, target.rect.top, True)
                                 else:
                                     if not function_scope.show_progress:                                   
@@ -484,7 +482,7 @@ class GUI:
                                     command = o
                                     operation_states[i] = operations[i][o][1]
                                     icon = operations[i][o][0].decode("utf-8")
-                                    text = text_cache.get(icon, opr_color, font_size)
+                                    text = text_cache.get(icon, opr_color, font_size, font)
                                     text.blit(target.rect.left, target.rect.top, True)
                                 else:
                                     offset = target.offset(x, y)
@@ -526,10 +524,6 @@ class GUI:
                             elif command == "Play":
                                 print("Play")
                                 music.unpause()
-#                                print("Toggle pause")
-#                                if music.is_paused():
-#                                    music.unpause()
-#                                else:
                             elif command == "Forward":
                                 print("Skip voice 10 seconds")
                                 if not music.seek(10):

@@ -1,7 +1,6 @@
-import os, re
+import os, time
 import pygame
 from pygame.locals import *
-import fcntl
 import ffmpeg
 import threading
 import datetime

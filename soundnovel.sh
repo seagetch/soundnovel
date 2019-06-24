@@ -7,4 +7,4 @@ if [ $? == 0 ]; then
 fi
 PYTHONPATH=$ROOT_PATH:$PYTHONPATH
 cd $ROOT_PATH
-python ./soundnovel.py $1 
+python ./soundnovel.py "$1"

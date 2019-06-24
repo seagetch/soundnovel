@@ -57,7 +57,7 @@ class Scenario:
             prefix =self.get_prefix_for(name)
         result = glob.glob("%s/%s"%(self.music_path, prefix.encode("utf-8")))
         result.sort()
-        return (result, self.image_map[prefix])
+        return (result, self.image_map.get(prefix))
 
     def get_image_path(self, images, id):
         name = images[id%len(images)]

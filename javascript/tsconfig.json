@@ -1,0 +1,21 @@
+{
+    "compileOnSave": true,
+    "compilerOptions": {
+        "module": "commonJS",
+        "target": "es5",
+        "lib": ["es2015", "webworker"],
+        "declaration": true,
+        "noImplicitAny": true,
+        "removeComments": true,
+        "preserveConstEnums": true,
+        "sourceMap": true,
+        "typeRoots": [
+            "node_modules/@types", 
+            "scenario"
+        ]
+    },
+    "include": [
+        "./*",
+        "scenario/**/*"
+    ]
+}

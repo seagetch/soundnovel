@@ -16,11 +16,12 @@
     "js-yaml": "^3.13.1",
     "path": "^0.12.7"
   },
-  "devDependencies": {
+  "devDependencies" : {
   },
   "scripts": {
     "start": "electron ."
+
   },
   "author": "seagetch",
-  "license": "ISC"
+  "license": "Apache2.0"
 }

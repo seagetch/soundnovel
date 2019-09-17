@@ -63,22 +63,21 @@ function scene(command: any[]) {
         timeout_id = window.setTimeout(progress, 1000);
 
         let scanvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
-        scanvas.onmousedown = (ev: MouseEvent) => {
+            $(scanvas).off("mousedown").on("mousedown", (ev: Event) => {
+            let mev = ev as MouseEvent;
             if (audio && audio.duration > 0) {
-                let rate = ev.x / scanvas.width;
+                let rate = mev.x / scanvas.width;
                 audio.currentTime = rate * audio.duration;
                 update_progress();
             }
-        }
+        });
 
-        document.getElementById("sound").appendChild(audio);
         audio.onended = function(event:Event) {
             window.clearTimeout(timeout_id);
             ipcRenderer.send("command", command_name);
             audio = null;
         }
-        let sound = $("#sound-ops");
-        sound.html("");
+        let sound = $("#sound-ops").html("");
         var i = 0;
         for (let s of sound_operations) {
             let states = operation_states[i]

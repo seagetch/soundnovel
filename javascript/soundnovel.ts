@@ -81,7 +81,9 @@ class ScenarioPlayer {
                     return next_command(reason);
                 });
             } else {
-                return this.title(event);
+                this.screen.reload();
+                return this.receive_cmds();
+//                return this.title(event);
             }
         }
         return next_command(event);

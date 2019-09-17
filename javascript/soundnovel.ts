@@ -6,7 +6,7 @@ import yaml = require('js-yaml');
 import { scenario } from "./scenario/scenario";
 const { app, BrowserWindow, ipcMain } = require('electron')
 
-class GUI {
+class ScenarioPlayer {
     private scenario: scenario.Scenario;
     private screen: any;
     constructor() {
@@ -20,15 +20,17 @@ class GUI {
                 else
                     resolve(event);
             })
+            ipcMain.removeAllListeners("terminate");
+            ipcMain.once("terminate", (event: any, name: string) => {
+                this.scenario.force(this.scenario.config["failure"] || []);
+                reject(event);
+                // TBD: must fire failure loop invokation.
+            })
         });
     }
     receive_others() {
         ipcMain.on("set-variable", (event: any, name:string, value:string) => {
             this.scenario.variables[name] = value;
-        })
-        ipcMain.on("failure", (event: any, name: string) => {
-            this.scenario.force(this.scenario.config["failure"]);
-            // TBD: must fire failure loop invokation.
         })
     }
     post_cmd(event: any, command: scenario.Command|void) {
@@ -68,12 +70,16 @@ class GUI {
     }
 
     execute_scenario(event: any) : Promise<any> {
-        const gen = this.scenario.run();
+        var gen = this.scenario.run();
         let next_command = (event: any) : Promise<any> => {
             let i : any = gen.next();
             if (!i.done) {
                 let command : scenario.Command|void = i.value;
-                return this.exec_cmd(event, command).then(next_command);
+                return this.exec_cmd(event, command).then(next_command).catch((reason:any) => {
+                    console.log("rejected. event:"+reason)
+                    gen = this.scenario.loop(null);
+                    return next_command(reason);
+                });
             } else {
                 return this.title(event);
             }
@@ -144,5 +150,5 @@ let scenario_test = () => {
 }
 
 //scenario_test();
-let gui = new GUI();
+let gui = new ScenarioPlayer();
 app.on('ready', () => {gui.run()});

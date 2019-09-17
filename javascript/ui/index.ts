@@ -17,44 +17,59 @@ function scene(command: any[]) {
     if (command[1]) {
         var timeout_id : number = null;
         audio = new Audio(command[1]);
+        let audio_rewind   = ()=>{ audio.currentTime = 0;}
+        let audio_rewind10 = ()=>{ audio.currentTime -= 10;}
+        let audio_forward10 = ()=>{ audio.currentTime += 10;}
+        let audio_forward   = ()=>{
+            audio.pause();
+            ipcRenderer.send("command", command_name)
+            audio = null;
+            window.clearTimeout(timeout_id);
+        }
+        let scenario_terminate = () => {
+            audio.pause();
+            ipcRenderer.send("terminate", command_name)
+            audio = null;
+            window.clearTimeout(timeout_id);
+        }
         let sound_operations : {[key:string]: [string, string, ()=>void]}[] = [
-            {"Previous": ["⏮", "Previous", ()=>{audio.currentTime = 0.0; }]},
-            {"Backward": ["⏪", "Backward", ()=>{audio.currentTime -= 10; }]},
+            {"Previous": ["⏮", "Previous", audio_rewind]},
+            {"Backward": ["⏪", "Backward", audio_rewind10]},
             {"Pause": ["⏸", "Play", ()=>{audio.pause()}], "Play": ["⏵", "Pause", ()=>{audio.play()}] },
-            {"Forward": ["⏩", "Forward", ()=>{audio.currentTime += 10; }]},
-            {"Next": ["⏭", "Next", ()=>{         
-                        audio.pause();
-                        ipcRenderer.send("command", command_name)
-                        audio = null;
-                        window.clearTimeout(timeout_id);
-                      }]},
-            {"Cancel": ["⏹", "Cancel", ()=>{
-                        audio.pause();
-                        ipcRenderer.send("failure", command_name)
-                        audio = null;
-                        window.clearTimeout(timeout_id);
-                      }]}
+            {"Forward": ["⏩", "Forward", audio_forward10]},
+            {"Next": ["⏭", "Next", audio_forward]},
+            {"Cancel": ["⏹", "Cancel", scenario_terminate ]}
         ]
         let operation_states = [
             "Previous", "Backward", "Pause", "Forward", "Next", "Cancel"
         ]
 
-        let progress = () => {
+        function update_progress() {
             if (audio) {
                 let rate = audio.currentTime / audio.duration;
                 let canvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
                 let w = canvas.width, h = canvas.height;
                 let ctx = canvas.getContext('2d');
-                ctx.fillStyle = "rgb(0, 0, 255)";
+                ctx.fillStyle = "rgb(96,128,244)";
                 ctx.fillRect(0, 0, w * rate, 32);
-                ctx.fillStyle = "rgb(80, 80, 80)";
+                ctx.fillStyle = "rgb(96, 96, 96)";
                 ctx.fillRect(w * rate, 0, w - w * rate, 32);
-                timeout_id = window.setTimeout(progress, 1000);
             }
         }
+        let progress = () => { 
+            update_progress();
+            timeout_id = window.setTimeout(progress, 1000);
+        }
         timeout_id = window.setTimeout(progress, 1000);
-    
-//        document.getElementById("sound").innerHTML = command[1];
+        let scanvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
+        scanvas.onmousedown = (ev: MouseEvent) => {
+            if (audio && audio.duration > 0) {
+                let rate = ev.x / scanvas.width;
+                audio.currentTime = rate * audio.duration;
+                update_progress();
+            }
+        }
+        
         document.getElementById("sound").appendChild(audio);
         audio.onended = function(event:Event) {
             window.clearTimeout(timeout_id);
@@ -90,6 +105,7 @@ function scene(command: any[]) {
         }
         audio.play();
     } else {
+        audio = null;
         ipcRenderer.send("command", command_name);
     }
 
@@ -153,18 +169,18 @@ ipcRenderer.on("command", (event:any, command: any[]) => {
         canvas.height = h;
         background.style.zIndex = "-1";
 
-        let sound = document.getElementById("sound");
+        let sound = document.getElementById("sound-progress");
         sound.style.position = "absolute";
-        sound.style.height = "64px";
+        sound.style.height = "32px";
         sound.style.width = w + "px";
         sound.style.zIndex = "1";
-        sound.style.top = "0";//(h - 32).toString()+"px";
+        sound.style.top = (h - 32).toString()+"px";
         sound.style.left = "0";
         sound.style.opacity = "0.5";
         sound.style.flexDirection = "row";
         let scanvas : HTMLCanvasElement = document.getElementById("sound-progress") as HTMLCanvasElement;
         scanvas.width = w;
-        scanvas.height = 64;
+        scanvas.height = 32;
     }
     command_name = command[0];
     if (command[0] == "scene") {

@@ -44,7 +44,7 @@ function scene(command: any[]) {
             "Previous", "Backward", "Pause", "Forward", "Next", "Cancel"
         ]
 
-        function update_progress() {
+        let update_progress = () => {
             if (audio) {
                 let rate = audio.currentTime / audio.duration;
                 let canvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
@@ -61,6 +61,7 @@ function scene(command: any[]) {
             timeout_id = window.setTimeout(progress, 1000);
         }
         timeout_id = window.setTimeout(progress, 1000);
+
         let scanvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
         scanvas.onmousedown = (ev: MouseEvent) => {
             if (audio && audio.duration > 0) {
@@ -69,15 +70,15 @@ function scene(command: any[]) {
                 update_progress();
             }
         }
-        
+
         document.getElementById("sound").appendChild(audio);
         audio.onended = function(event:Event) {
             window.clearTimeout(timeout_id);
             ipcRenderer.send("command", command_name);
             audio = null;
         }
-        let sound = document.getElementById("sound-ops");
-        sound.innerHTML="";
+        let sound = $("#sound-ops");
+        sound.html("");
         var i = 0;
         for (let s of sound_operations) {
             let states = operation_states[i]
@@ -87,20 +88,15 @@ function scene(command: any[]) {
                     cmd_tmp = s[ss];
                 }
             }
-            let button = document.createElement("div");
-            let text = document.createTextNode(cmd_tmp[0]);
-            button.style.display = "inline";
-            button.style.fontSize = "64px";
-            button.appendChild(text);
-            sound.appendChild(button);
             let index = i;
-            button.onclick = (ev:Event) => {
+            let button = $("<div>").html(cmd_tmp[0]).css({"display": "inline", "font-size": "64px"}).appendTo(sound);
+            button.on("click", (ev:Event) => {
                 let states : string = operation_states[index];
                 var cmd : [string, string, ()=>void] = sound_operations[index][states];
                 cmd[2]();
                 operation_states[index] = cmd[1];
-                button.innerHTML=sound_operations[index][cmd[1]][0];
-            }
+                button.html(sound_operations[index][cmd[1]][0]);
+            });
             i ++;
         }
         audio.play();
@@ -113,7 +109,6 @@ function scene(command: any[]) {
 
 function ask(command: any[]) {
     let options = command[1];
-    let selection = document.getElementById("selection");
     let location = options["location"];
     let x = location ? location[0] : 0, y = location ? location[1] : 0
     let fontsize : number = options["size"] ? options["size"] : 40
@@ -127,57 +122,56 @@ function ask(command: any[]) {
     let scolor = color_info ? color_info["selected"] : "#FE0000";
     let candidates : any[] = command[1]["candidates"];
 
-    selection.style.position = 'absolute';
-    selection.style.top = y+"px";
-    selection.style.left = x+"px";
-    selection.innerHTML = "";
-    selection.style.flexDirection = (direction == "vertical")? "column": "row";
-    selection.style.zIndex = "100";
-    selection.style.display = "block";
-    selection.style.borderColor = "#000000";
+    let selection = $("#selection").html("").css({
+        "position": "absolute",
+        "top": y +"px",
+        "left": x + "px",
+        "flex-direction": (direction == "vertical")? "column": "row",
+        "z-index": "100",
+        "display": "block",
+        "border-color": "#000000"
+    })
     for (let c of candidates) {
-        console.log("Ask: candidates="+c)
-        let element = document.createElement("div");
-        let text = document.createTextNode(c);
-        element.appendChild(text);
-        element.style.fontSize = fontsize.toString() + "px";
-        element.style.fontWeight = "700";
-        element.style.color = color;
-        element.style.marginBottom = (ofs_y - fontsize).toString()+"px";
-        element.style.zIndex = "100";
-        element.onclick = (event: MouseEvent) => {
-            selection.style.display = "none";
+        $("<div>").html(c).css({
+            "font-size": fontsize.toString() + "px",
+            "font-weight": "700",
+            "color": color,
+            "marginBottom": (ofs_y - fontsize).toString()+"px",
+            "z-index": fontsize.toString() + "px"
+        }).click(() => {
+            selection.css({"display": "none"});
             ipcRenderer.send("set-variable", options["variable"], c);
             ipcRenderer.send("command", command_name);
-        }
-        selection.appendChild(element);
+        }).appendTo(selection);
     }
 }
 
 ipcRenderer.on("command", (event:any, command: any[]) => {
     if (!initialized) {
         initialized = true;
-        let background = document.getElementById("background");
         let w : number = window.innerWidth, h : number = window.innerHeight;
-        background.style.padding = "0";
-        background.style.margin = "0";
-        background.style.position = "absolute";
-        background.style.top = "0";
-        background.style.left = "0";
+        $("#background").css({
+            "padding": "0",
+            "margin": "0",
+            "position": "absolute",
+            "top": "0",
+            "left": "0",
+            "z-index": "-1"
+        });
         let canvas : HTMLCanvasElement = document.getElementById("canvas") as HTMLCanvasElement;
         canvas.width = w;
         canvas.height = h;
-        background.style.zIndex = "-1";
 
-        let sound = document.getElementById("sound-progress");
-        sound.style.position = "absolute";
-        sound.style.height = "32px";
-        sound.style.width = w + "px";
-        sound.style.zIndex = "1";
-        sound.style.top = (h - 32).toString()+"px";
-        sound.style.left = "0";
-        sound.style.opacity = "0.5";
-        sound.style.flexDirection = "row";
+        $("#sound-progress").css({
+            "position": "absolute",
+            "height": "32px",
+            "width": w + "px",
+            "z-index": "1",
+            "top": (h - 32).toString()+"px",
+            "left": "0",
+            "opacity": "0.5",
+            "flex-direction": "row"
+        })
         let scanvas : HTMLCanvasElement = document.getElementById("sound-progress") as HTMLCanvasElement;
         scanvas.width = w;
         scanvas.height = 32;

@@ -3,7 +3,7 @@
     "compilerOptions": {
         "module": "commonJS",
         "target": "es5",
-        "lib": ["es2015", "webworker"],
+        "lib": ["es2015", "es2015.iterable", "dom"],
         "declaration": true,
         "noImplicitAny": true,
         "removeComments": true,
@@ -16,6 +16,7 @@
     },
     "include": [
         "./*",
+        "ui/*",
         "scenario/**/*"
     ]
 }

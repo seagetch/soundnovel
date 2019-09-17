@@ -4,18 +4,19 @@
   "description": "Simple sound novel player for sound-artworks.",
   "main": "soundnovel.js",
   "dependencies": {
-    "glob": "^7.1.4"
-  },
-  "devDependencies": {
     "@types/electron": "^1.6.10",
     "@types/glob": "^7.1.1",
+    "@types/jquery": "^3.3.31",
     "@types/js-yaml": "^3.12.1",
     "@types/node": "^12.7.5",
-    "electron-remote": "^1.3.0",
+    "electron": "^6.0.9",
     "fs": "0.0.1-security",
     "glob": "^7.1.4",
+    "jquery": "^3.4.1",
     "js-yaml": "^3.13.1",
     "path": "^0.12.7"
+  },
+  "devDependencies": {
   },
   "scripts": {
     "start": "electron ."

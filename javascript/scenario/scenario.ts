@@ -4,7 +4,7 @@
 //def is_str(obj):
 //    return isinstance(obj, basestring) or isinstance(obj, str) or isinstance(obj, unicode)
 import glob = require("glob");
-import Path = require("path");
+import path = require("path");
 export module scenario {
 export class Command {
     private _command : string;
@@ -84,11 +84,13 @@ export class Scenario {
         return null;
     }
 
-    list_files(name : string, prefix : string = null) {
+    list_files(name : string, prefix : string = null, candidates : string[] = null) {
         if (!prefix)
             prefix = this.get_prefix_for(name);
-        let result = glob.sync(Path.join(this.music_path, prefix));
+        let result = glob.sync(path.join(this.music_path, prefix));
         result.sort();
+        if (candidates)
+            result = result.filter((s:string):boolean => { return prefix.indexOf(path.basename(s)) >= 0;})
         return [result, this._config["image_map"][prefix]];
     }
 
@@ -97,11 +99,11 @@ export class Scenario {
         if (name instanceof Array) {
             return [name[0]].concat(name.slice(1, name.length).map( (x: any): any => { 
                 if (typeof(x) == "string")
-                    return Path.join(this.image_path, x);
+                    return path.join(this.image_path, x);
                 else
                     return x; }));
         } else if (typeof(name) == "string")
-            return Path.join(this.image_path, name);
+            return path.join(this.image_path, name);
     }
 
     select_action_rand(name : string, prefix : string) : [number, [string, string]] {
@@ -142,8 +144,8 @@ export class Scenario {
                 if (judge.length > 2) {
                     let prefix = judge.slice(2, judge.length);
                     let resources = this.list_files(current);
-                    let sounds = resources[0], images = resources[1];
-                    let sound_candidates = sounds.filter((s:string):boolean => { return prefix.indexOf(Path.basename(s)) >= 0;});
+                    let sound_candidates = resources[0], images = resources[1];
+//                    let sound_candidates = sounds.filter((s:string):boolean => { return prefix.indexOf(path.basename(s)) >= 0;});
                     let variation = Math.floor(Math.random() * sound_candidates.length);
                     let resources2: any[] = [ [sound_candidates[variation], this.get_image_path(images, index)] ];
                     judge = judge.slice(0, 2).concat(resources2); 
@@ -238,7 +240,7 @@ export class Scenario {
     }
 
     force(states: any) {
-        while (this.sub_scenario.length > this.states.length) {
+        while (this.sub_scenario.length > states.length) {
             this.sub_scenario.pop();
             this.histories.pop();
         }

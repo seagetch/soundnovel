@@ -7,11 +7,14 @@
     </script>
     <script src="../node_modules/jquery/dist/jquery.slim.min.js"></script>
 </head>
-<body>
+<body style="user-select: none; overflow: hidden">
     <script src="./index.js"></script>
-    <div id="main">
+    <div id="main" style="overflow: hidden">
         <div id="background"><canvas id="canvas"></canvas></div>
-        <div id="sound"><div id="sound-ops"></div><canvas id="sound-progress"></div>
+        <div id="sound">
+            <div id="sound-ops" style="background: black; opacity: 0.5; color: white; width: auto;"></div>
+            <canvas id="sound-progress" />
+        </div>
         <div id="selection">selection</div>
     </div>
 </body>

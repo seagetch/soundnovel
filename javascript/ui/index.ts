@@ -4,15 +4,94 @@ var command_name : string = "";
 var audio : HTMLAudioElement;
 var initialized = false;
 
-function scene(command: any[]) {
-    let image = new Image();
-    image.src = command[2];
-    image.onload = (ev: Event) => {
-        let w = window.innerWidth, h = window.innerHeight;
-        let canvas : HTMLCanvasElement = document.getElementById('canvas') as HTMLCanvasElement;
-        let ctx = canvas.getContext('2d');
-        ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, w, h);
+function image_renderer(canvas: HTMLCanvasElement, image: HTMLImageElement|HTMLCanvasElement) {
+    let ctx = canvas.getContext('2d');
+    return (ev?: Event) => {
+        let dest_rate = canvas.width / canvas.height;
+        let src_rate  = image.width / image.height;
+        if (src_rate > dest_rate) {
+            let y = image.height * canvas.width / image.width;
+            ctx.fillStyle = "rgb(0, 0, 0)";
+            ctx.fillRect(0,                       0, canvas.width, (canvas.height - y) / 2);
+            ctx.fillRect(0, (canvas.height + y) / 2, canvas.width, (canvas.height - y) / 2);
+        ctx.drawImage(image, 0, 0, image.width, image.height, 0, (canvas.height - y) / 2, canvas.width, y);
+        } else {
+            let x = image.width * canvas.height / image.height;
+            ctx.fillStyle = "rgb(0, 0, 0)";
+            ctx.fillRect(                     0, 0, (canvas.width - x) / 2, canvas.height);
+            ctx.fillRect((canvas.width + x) / 2, 0, (canvas.width - x) / 2, canvas.height);
+            ctx.drawImage(image, 0, 0, image.width, image.height, (canvas.width - x) / 2, 0, x, canvas.height);
+        }
     };
+}
+
+function scene(command: any[]) {
+    let image_src : any = command[2];
+
+    let canvas : HTMLCanvasElement = document.getElementById('canvas') as HTMLCanvasElement;
+
+    if (Array.isArray(image_src)) {
+        let off_canvas : HTMLCanvasElement = $("<canvas>").get()[0] as HTMLCanvasElement
+        let off_ctx = off_canvas.getContext('2d');
+        switch (image_src[0]) {
+        case "truncate": {
+            let i = new Image();
+            let bounds : [[number, number], [number, number]] = image_src[2]
+            i.onload = (ev: Event) => {
+                off_canvas.width = i.width * bounds[1][0];
+                off_canvas.height = i.height * bounds[1][1];
+                off_ctx.drawImage(i, i.width * bounds[0][0], i.height * bounds[0][1], off_canvas.width, off_canvas.height, 0, 0, off_canvas.width, off_canvas.height)
+                image_renderer(canvas, off_canvas)();
+            }
+            i.src=image_src[1]
+        } break;
+        case "horizontal":
+        case "vertical": {
+            Promise.all((image_src.slice(1, image_src.length) as string[]).map((elem: string) : Promise<HTMLImageElement> => {
+                let i : HTMLImageElement = new Image() as HTMLImageElement;
+                return new Promise((resolve, reject) => {
+                    i.onload = (ev: Event) => {
+                        resolve(i)
+                    }
+                    i.src = elem;
+                })
+            })).then((images: HTMLImageElement[]) => {
+                var red_w : (x: number, y: number, _1: number, _2: number[]) => number
+                var red_h : (x: number, y: number, _1: number, _2: number[]) => number
+                var ofs_x: number = 0, ofs_y:number = 0;
+                if (image_src[0] == "horizontal") {
+                    red_w = (x, y, _1, _2) => { return x + y; }
+                    red_h = (x, y, _1, _2) => { return (x>y)? x: y; }
+                    ofs_x = 1;
+                } else {
+                    red_h = (x, y, _1, _2) => { return x + y; }
+                    red_w = (x, y, _1, _2) => { return (x>y)? x: y; }
+                    ofs_y = 1;
+                }
+                let w = images.map((i) => { return i.width;}).reduce(red_w);
+                let h = images.map((i) => { return i.height;}).reduce(red_h);
+                off_canvas.width = w;
+                off_canvas.height = h;
+                var x = 0, y = 0;
+                for (let i of images) {
+                    off_ctx.drawImage(i, x, y);
+                    x += ofs_x * i.width;
+                    y += ofs_y * i.height;
+                }
+                image_renderer(canvas, off_canvas)();
+            });
+        } break;
+        default:
+            console.log("Unknown command: "+image_src[0])
+        }
+        
+    } else if (typeof image_src == "string") {
+        let image = new Image();
+        image.onload = image_renderer(canvas, image);
+        image.src = image_src as string;
+    } else {
+        alert("Unknows image src="+image_src)
+    }
 
     if (command[1]) {
         var timeout_id : number = null;
@@ -78,25 +157,17 @@ function scene(command: any[]) {
             audio = null;
         }
         let sound = $("#sound-ops").html("");
-        var i = 0;
-        for (let s of sound_operations) {
-            let states = operation_states[i]
-            var cmd_tmp : [string, string, ()=>void] = null;
-            for (let ss in s) {
-                if (ss == states) {
-                    cmd_tmp = s[ss];
-                }
-            }
-            let index = i;
-            let button = $("<div>").html(cmd_tmp[0]).css({"display": "inline", "font-size": "64px"}).appendTo(sound);
-            button.on("click", (ev:Event) => {
-                let states : string = operation_states[index];
-                var cmd : [string, string, ()=>void] = sound_operations[index][states];
-                cmd[2]();
-                operation_states[index] = cmd[1];
-                button.html(sound_operations[index][cmd[1]][0]);
-            });
-            i ++;
+        for (let i =0; i < operation_states.length; i++) {
+            let cmd : {[key: string]: [string, string, ()=>void]} = sound_operations[i];
+            $("<div>").html(cmd[operation_states[i]][0]).css({
+                "display": "inline", 
+                "font-size": "64px"
+            }).on("click", (ev:Event) => {
+                let states : string = operation_states[i];
+                cmd[states][2]();
+                operation_states[i] = cmd[states][1];
+                $(ev.target).html(sound_operations[i][cmd[states][1]][0]);
+            }).appendTo(sound);
         }
         audio.play();
     } else {
@@ -116,28 +187,40 @@ function ask(command: any[]) {
     let ofs_x : number = layout ? layout["offset"][0] : 0, ofs_y : number = layout ? layout["offset"][1] : 100
     let line_size = layout ? layout["line-size"] : null;
     let color_info = options["color"]
-    let color = color_info ? color_info["base"] : "#FEFEFE";
-    let hcolor = color_info ? color_info["hover"] : "#FEE000";
-    let scolor = color_info ? color_info["selected"] : "#FE0000";
+    let color = color_info ? color_info["base"] : "rgb(240, 240, 240)";
+    let hcolor = color_info ? color_info["hover"] : "rgb(240, 224, 0)";
+    let scolor = color_info ? color_info["selected"] : "rgb(240, 0, 0)";
     let candidates : any[] = command[1]["candidates"];
 
     let selection = $("#selection").html("").css({
         "position": "absolute",
         "top": y +"px",
         "left": x + "px",
-        "flex-direction": (direction == "vertical")? "column": "row",
         "z-index": "100",
         "display": "block",
-        "border-color": "#000000"
+        "border-color": "#000000",
+        "width": (direction == "horizontal" && line_size) ? (ofs_x * line_size) + "px" : "auto", 
+        "height": (direction == "vertical" && line_size) ? (ofs_y * line_size) + "px" : "auto" 
     })
     for (let c of candidates) {
         $("<div>").html(c).css({
             "font-size": fontsize.toString() + "px",
             "font-weight": "700",
+            "flex-direction": (direction == "vertical")? "column": "row",
             "color": color,
-            "marginBottom": (ofs_y - fontsize).toString()+"px",
+            "display": (direction == "vertical")? "block": "inline-block",
+            "padding": "0",
+            "margin": "0",
+            "height": ofs_y,
+            "width": (direction == "vertical")? "auto": ofs_x + "px",
             "z-index": fontsize.toString() + "px"
-        }).click(() => {
+        }).hover((ev) => {
+            $(ev.target).css({ "color": hcolor })
+        }, (ev) => {
+            $(ev.target).css({ "color": color })
+        }).mousedown((ev) =>{
+            $(ev.target).css({ "color": scolor })
+        }).click((ev) => {
             selection.css({"display": "none"});
             ipcRenderer.send("set-variable", options["variable"], c);
             ipcRenderer.send("command", command_name);
@@ -180,6 +263,9 @@ ipcRenderer.on("command", (event:any, command: any[]) => {
         scene(command)
     } else if (command[0] == "ask") {
         ask(command);
+    } else if (command[0] == "title") {
+        document.title = command[1];
+        ipcRenderer.send("command", command_name);
     } else {
         ipcRenderer.send("command-error", command_name)
     }

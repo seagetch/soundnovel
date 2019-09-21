@@ -1,6 +1,6 @@
 
-import Path = require("path");
-import fs = require("fs");
+import path = require("path");
+import fs   = require("fs");
 import yaml = require('js-yaml');
 
 import { scenario } from "./scenario/scenario";
@@ -9,6 +9,7 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 class ScenarioPlayer {
     private scenario: scenario.Scenario;
     private screen: any;
+    private window_title: string;
     constructor() {
     }
 
@@ -22,9 +23,7 @@ class ScenarioPlayer {
             })
             ipcMain.removeAllListeners("terminate");
             ipcMain.once("terminate", (event: any, name: string) => {
-                this.scenario.force(this.scenario.config["failure"] || []);
                 reject(event);
-                // TBD: must fire failure loop invokation.
             })
         });
     }
@@ -33,16 +32,18 @@ class ScenarioPlayer {
             this.scenario.variables[name] = value;
         })
     }
-    post_cmd(event: any, command: scenario.Command|void) {
+    post_cmd(event: any, command: scenario.Command|string[]|void) {
         if (command instanceof scenario.Scene) {
             let scene = command as scenario.Scene;
             event.reply("command", ["scene", scene.sound, scene.image]);
         } else if (command instanceof scenario.Ask) {
             let ask = command as scenario.Ask;
             event.reply("command", ["ask", ask.options])
+        } else {
+            event.reply("command", command)
         }
     }
-    exec_cmd(event: any, command: scenario.Command|void) : Promise<any> {
+    exec_cmd(event: any, command: scenario.Command|string[]|void) : Promise<any> {
         this.post_cmd(event, command);
         return this.receive_cmds() 
     }
@@ -57,13 +58,15 @@ class ScenarioPlayer {
                 "variable": "mode"
             };
             options["color"] = this.scenario.config["screen"]["menu_color"];
-            options["layout"] = this.scenario.config["screen"]["manu_layout"];
-            options["size"] = this.scenario.config["screen"]["manu_size"];
+            options["layout"] = this.scenario.config["screen"]["menu_layout"];
+            options["size"] = this.scenario.config["screen"]["menu_size"];
             let scene = new scenario.Scene(null, title_img);
             let ask = new scenario.Ask(options);
-            return this.exec_cmd(event, scene).then((event: any)=>{ 
-                return this.exec_cmd(event, ask)
-            }).then((event: any)=>{
+            return this.exec_cmd(event, ["title", this.window_title]).then((event: any) => {
+                return this.exec_cmd(event, scene);
+            }).then((event: any) => { 
+                return this.exec_cmd(event, ask);
+            }).then((event: any) => {
                 return this.execute_scenario(event);
             })
         }
@@ -77,20 +80,21 @@ class ScenarioPlayer {
                 let command : scenario.Command|void = i.value;
                 return this.exec_cmd(event, command).then(next_command).catch((reason:any) => {
                     console.log("rejected. event:"+reason)
+                    this.scenario.force(Array.from(this.scenario.config["failure"] || []));
                     gen = this.scenario.loop(null);
                     return next_command(reason);
                 });
             } else {
                 this.screen.reload();
                 return this.receive_cmds();
-//                return this.title(event);
             }
         }
         return next_command(event);
     }
+
     run() {
         let filename = process.argv[2];
-        let root_path = Path.dirname(filename);
+        let root_path = path.dirname(filename);
         
         console.log("Reading config ("+filename+")")
         
@@ -115,7 +119,7 @@ class ScenarioPlayer {
         this.screen.setResizable(false);
         // and load the index.html of the app.
         this.screen.loadFile('./ui/index.html');
-        let title = Path.basename(Path.dirname(filename));
+        this.window_title = path.basename(path.dirname(filename));
         this.receive_others()
         this.receive_cmds()
     }
@@ -124,7 +128,7 @@ class ScenarioPlayer {
 
 let scenario_test = () => {
     let filename = process.argv[2];
-    let root_path = Path.dirname(filename);
+    let root_path = path.dirname(filename);
     
     console.log("Reading config ("+filename+")")
     

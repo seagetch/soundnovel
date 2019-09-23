@@ -5,6 +5,7 @@ import yaml = require("js-yaml");
 
 import { scenario } from "./scenario/scenario";
 import electron = require("electron")
+import { SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS } from "constants";
 
 class ScenarioPlayer {
     private scenario: scenario.Scenario;
@@ -13,13 +14,20 @@ class ScenarioPlayer {
     constructor() {
     }
 
+    receive_start() : Promise<any> {
+        return new Promise<any>((resolve, reject) => {
+            electron.ipcMain.once("start", (event: any) => {
+                event.reply("screen", this.scenario.config["screen"]["size"]);
+                event.reply("fullscreen", this.screen.fullscreen);
+                resolve(event);
+            });
+        });
+    }
+
     receive_cmds(): Promise<any> {
         return new Promise<any>((resolve, reject) => {
             electron.ipcMain.once("command", (event: any, name: string) => {
-                if (name == "")
-                    this.title(event)
-                else
-                    resolve(event);
+                resolve(event);
             })
             electron.ipcMain.removeAllListeners("terminate");
             electron.ipcMain.once("terminate", (event: any, name: string) => {
@@ -30,6 +38,17 @@ class ScenarioPlayer {
     receive_others() {
         electron.ipcMain.on("set-variable", (event: any, name: string, value: string) => {
             this.scenario.variables[name] = value;
+        })
+        electron.ipcMain.on("fullscreen", (event: any, value: boolean) => {
+            if (value) {
+                this.screen.setResizable(true);
+                this.screen.setFullScreen(value);
+            } else {
+                this.screen.setFullScreen(value);
+                this.screen.setResizable(false);
+                this.screen.setMenuBarVisibility(false);
+            }
+            event.reply("fullscreen", value);
         })
     }
     post_cmd(event: any, command: scenario.Command | string[] | void) {
@@ -65,7 +84,7 @@ class ScenarioPlayer {
             event = await this.exec_cmd(event, ["title", this.window_title]);
             event = await this.exec_cmd(event, scene);
             event = await this.exec_cmd(event, ask);
-            return this.execute_scenario(event);
+            return event;
         } else
             return null;
     }
@@ -83,8 +102,8 @@ class ScenarioPlayer {
                 event = reason;
             }
         }
-        this.screen.reload();
-        return this.receive_cmds();
+        console.log("Terminate scenario.")
+        return event;
     }
 
     run() {
@@ -118,8 +137,15 @@ class ScenarioPlayer {
         // and load the index.html of the app.
         this.screen.loadFile('./ui/index.html');
         this.window_title = path.basename(path.dirname(filename));
-        this.receive_others()
-        this.receive_cmds()
+        this.receive_others();
+        let doit = async() => {
+            let event = await this.receive_start();
+            while (true) {
+                event = await this.title(event);
+                event = await this.execute_scenario(event);
+            }
+        }
+        doit();
     }
 }
 

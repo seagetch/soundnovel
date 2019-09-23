@@ -2,25 +2,33 @@ const { ipcRenderer } = require('electron');
 
 var command_name : string = "";
 var audio : HTMLAudioElement;
+var image_resource : HTMLImageElement | HTMLCanvasElement = null;
+var fullscreen = false;
 var initialized = false;
+var screen_size = [window.innerWidth, window.innerHeight];
 
-function image_renderer(canvas: HTMLCanvasElement, image: HTMLImageElement|HTMLCanvasElement) {
+function image_renderer(canvas: HTMLCanvasElement) {
     let ctx = canvas.getContext('2d');
     return (ev?: Event) => {
         let dest_rate = canvas.width / canvas.height;
-        let src_rate  = image.width / image.height;
-        if (src_rate > dest_rate) {
-            let y = image.height * canvas.width / image.width;
-            ctx.fillStyle = "rgb(0, 0, 0)";
-            ctx.fillRect(0,                       0, canvas.width, (canvas.height - y) / 2);
-            ctx.fillRect(0, (canvas.height + y) / 2, canvas.width, (canvas.height - y) / 2);
-        ctx.drawImage(image, 0, 0, image.width, image.height, 0, (canvas.height - y) / 2, canvas.width, y);
+        if (image_resource) {
+            let src_rate  = image_resource.width / image_resource.height;
+            if (src_rate > dest_rate) {
+                let y = image_resource.height * canvas.width / image_resource.width;
+                ctx.fillStyle = "rgb(0, 0, 0)";
+                ctx.fillRect(0,                       0, canvas.width, (canvas.height - y) / 2);
+                ctx.fillRect(0, (canvas.height + y) / 2, canvas.width, (canvas.height - y) / 2);
+            ctx.drawImage(image_resource, 0, 0, image_resource.width, image_resource.height, 0, (canvas.height - y) / 2, canvas.width, y);
+            } else {
+                let x = image_resource.width * canvas.height / image_resource.height;
+                ctx.fillStyle = "rgb(0, 0, 0)";
+                ctx.fillRect(                     0, 0, (canvas.width - x) / 2, canvas.height);
+                ctx.fillRect((canvas.width + x) / 2, 0, (canvas.width - x) / 2, canvas.height);
+                ctx.drawImage(image_resource, 0, 0, image_resource.width, image_resource.height, (canvas.width - x) / 2, 0, x, canvas.height);
+            }
         } else {
-            let x = image.width * canvas.height / image.height;
             ctx.fillStyle = "rgb(0, 0, 0)";
-            ctx.fillRect(                     0, 0, (canvas.width - x) / 2, canvas.height);
-            ctx.fillRect((canvas.width + x) / 2, 0, (canvas.width - x) / 2, canvas.height);
-            ctx.drawImage(image, 0, 0, image.width, image.height, (canvas.width - x) / 2, 0, x, canvas.height);
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
     };
 }
@@ -29,7 +37,6 @@ function scene(command: any[]) {
     let image_src : any = command[2];
 
     let canvas : HTMLCanvasElement = document.getElementById('canvas') as HTMLCanvasElement;
-
     if (Array.isArray(image_src)) {
         let off_canvas : HTMLCanvasElement = $("<canvas>").get()[0] as HTMLCanvasElement
         let off_ctx = off_canvas.getContext('2d');
@@ -40,8 +47,9 @@ function scene(command: any[]) {
             i.onload = (ev: Event) => {
                 off_canvas.width = i.width * bounds[1][0];
                 off_canvas.height = i.height * bounds[1][1];
-                off_ctx.drawImage(i, i.width * bounds[0][0], i.height * bounds[0][1], off_canvas.width, off_canvas.height, 0, 0, off_canvas.width, off_canvas.height)
-                image_renderer(canvas, off_canvas)();
+                off_ctx.drawImage(i, i.width * bounds[0][0], i.height * bounds[0][1], off_canvas.width, off_canvas.height, 0, 0, off_canvas.width, off_canvas.height);
+                image_resource = off_canvas;
+                image_renderer(canvas)();
             }
             i.src=image_src[1]
         } break;
@@ -78,7 +86,8 @@ function scene(command: any[]) {
                     x += ofs_x * i.width;
                     y += ofs_y * i.height;
                 }
-                image_renderer(canvas, off_canvas)();
+                image_resource = off_canvas;
+                image_renderer(canvas)();
             });
         } break;
         default:
@@ -87,19 +96,26 @@ function scene(command: any[]) {
         
     } else if (typeof image_src == "string") {
         let image = new Image();
-        image.onload = image_renderer(canvas, image);
+        image.onload = (ev) => {
+            image_resource = image;
+            image_renderer(canvas)(ev);
+        }
         image.src = image_src as string;
     } else {
         alert("Unknows image src="+image_src)
     }
 
+    let sound = $("#sound");
     if (command[1]) {
         audio = new Audio(command[1]);
+        let observer : MutationObserver = null;
         let audio_rewind   = ()=>{ audio.currentTime = 0;}
         let audio_rewind10 = ()=>{ audio.currentTime -= 10;}
         let audio_forward10 = ()=>{ audio.currentTime += 10;}
         let audio_forward   = ()=>{
             audio.pause();
+            if (observer)
+                observer.disconnect();
             ipcRenderer.send("command", command_name)
             audio = null;
         }
@@ -107,20 +123,25 @@ function scene(command: any[]) {
         let audio_unmute   = ()=>{ audio.muted = false; }
         let scenario_terminate = () => {
             audio.pause();
+            if (observer)
+                observer.disconnect();
             ipcRenderer.send("terminate", command_name)
             audio = null;
         }
-        let sound_operations : {[key:string]: [string, string, ()=>void]}[] = [
-            {"Previous": ["⏮", "Previous", audio_rewind]},
-            {"Backward": ["⏪", "Backward", audio_rewind10]},
-            {"Pause": ["⏸", "Play", ()=>{audio.pause()}], "Play": ["⏵", "Pause", ()=>{audio.play()}] },
-            {"Forward": ["⏩", "Forward", audio_forward10]},
-            {"Next": ["⏭", "Next", audio_forward]},
-            {"Mute": ["🔈", "Unmute", audio_mute], "Unmute": ["🔇", "Mute", audio_unmute]},
-            {"Cancel": ["⏹", "Cancel", scenario_terminate ]}
+        let set_fullscreen   = ()=>{ipcRenderer.send("fullscreen", true);}
+        let set_unfullscreen = ()=>{ipcRenderer.send("fullscreen", false);}
+        let sound_operations : {[key:string]: [string, string, ()=>void, string]}[] = [
+            {"Previous": ["⏮", "Previous", audio_rewind, "left"]},
+            {"Backward": ["⏪", "Backward", audio_rewind10, "left"]},
+            {"Pause": ["⏸", "Play", ()=>{audio.pause()}, "left"], "Play": ["⏵", "Pause", ()=>{audio.play()}, "left"] },
+            {"Forward": ["⏩", "Forward", audio_forward10, "left"]},
+            {"Next": ["⏭", "Next", audio_forward, "left"]},
+            {"Mute": ["🔈", "Unmute", audio_mute, "right"], "Unmute": ["🔇", "Mute", audio_unmute, "right"]},
+            {"Cancel": ["⏹", "Cancel", scenario_terminate, "left"]},
+            {"Fullscreen": ["⊞", "Unfullscreen", set_fullscreen, "right"], "Unfullscreen": ["⊟", "Fullscreen", set_unfullscreen, "right"] },
         ]
         let operation_states = [
-            "Previous", "Backward", "Pause", "Forward", "Next", "Mute", "Cancel"
+            "Previous", "Backward", "Pause", "Forward", "Next", "Mute", "Cancel", fullscreen? "Unfullscreen":"Fullscreen"
         ]
 
         let update_progress = () => {
@@ -129,7 +150,6 @@ function scene(command: any[]) {
                 let canvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
                 let w = canvas.width, h = canvas.height;
                 let ctx = canvas.getContext('2d');
-//                ctx.fillStyle = "rgb(96,128,244)";
                 ctx.fillStyle = "white";
                 ctx.fillRect(0, 0, w * rate, 32);
                 ctx.fillStyle = "rgb(96, 96, 96)";
@@ -138,7 +158,7 @@ function scene(command: any[]) {
         }
         audio.ontimeupdate = update_progress;
 
-        let scanvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
+        let scanvas : HTMLCanvasElement = $('#sound-progress').get()[0] as HTMLCanvasElement;
         $(scanvas).off("mousedown").on("mousedown", (ev: Event) => {
             let mev = ev as MouseEvent;
             if (audio && audio.duration > 0) {
@@ -148,16 +168,17 @@ function scene(command: any[]) {
         });
 
         audio.onended = function(event:Event) {
+            if (observer)
+                observer.disconnect();
             ipcRenderer.send("command", command_name);
             audio = null;
         }
-        let sound_op_area = $("#sound-ops").html("");
-        //$(sound).append(audio)
-        //audio.controls = true;
+        let sound_op_left = $("#sound-ops").html("");
+        let sound_op_right = $("#sound-ops-right").html("");
         for (let i =0; i < operation_states.length; i++) {
-            let cmd : {[key: string]: [string, string, ()=>void]} = sound_operations[i];
+            let cmd : {[key: string]: [string, string, ()=>void, string]} = sound_operations[i];
             $("<span>").html(cmd[operation_states[i]][0]).css({
-                "margin-left": (i == 0)? "28px": "8",
+                "margin-left": "0",
                 "margin-top": "8",
                 "margin-bottom": "8",
                 "display": "inline-block", 
@@ -167,21 +188,32 @@ function scene(command: any[]) {
                 "text-align": "center",
                 "border-radius": "50%",
             }).hover((ev)=>{
-                $(ev.target).css({ "color": "inherit", "background-color": "#808080" })
+                let target = $(ev.target);
+                if (ev.buttons & 1)
+                   target.css({ "color": "black", "background-color": "white" })
+                else
+                    target.css({ "color": "inherit", "background-color": "#808080" })
             }, (ev)=>{
-                $(ev.target).css({ "color": "inherit", "background-color": "transparent" })
-            }).on("mousedown", (ev:Event) => {
-                $(ev.target).css({ "color": "black", "background-color": "white" })
-            }).on("click", (ev:Event) => {
-                $(ev.target).css({ "color": "inherit", "background-color": "transparent" })
-                let states : string = operation_states[i];
-                cmd[states][2]();
-                operation_states[i] = cmd[states][1];
-                $(ev.target).html(sound_operations[i][cmd[states][1]][0]);
-            }).appendTo(sound_op_area);
+                let target = $(ev.target);
+                target.css({ "color": "inherit", "background-color": "transparent" })
+            }).on("mousedown", (ev) => {
+                let target = $(ev.target);
+                if (ev.buttons & 1)
+                    target.css({ "color": "black", "background-color": "white" })
+                else
+                    target.css({ "color": "inherit", "background-color": "#808080" })
+            }).on("mouseup", (ev) => {
+                let target = $(ev.target);
+                target.css({ "color": "inherit", "background-color": "transparent" })
+                if (ev.button == 0) {
+                    let states : string = operation_states[i];
+                    cmd[states][2]();
+                    operation_states[i] = cmd[states][1];
+                    $(ev.target).html(sound_operations[i][cmd[states][1]][0]);
+                }
+            }).appendTo((cmd[operation_states[i]][3] == "left")?sound_op_left:sound_op_right);
         }
-        let sound = $("#sound");
-        scanvas.width = (sound.innerWidth() - sound_op_area.outerWidth()) * 0.95;
+        scanvas.width = (sound.innerWidth() - sound_op_left.outerWidth() - sound_op_right.outerWidth()) * 0.99;
         scanvas.style.width = scanvas.width + "px";
         sound.off("mouseenter");
         sound.off("mouseleave");
@@ -190,9 +222,30 @@ function scene(command: any[]) {
         }, (ev) => {
             sound.fadeTo(250, 0.0);
         })
+
+
+        {
+            let previous_width : number = sound.width();
+            observer = new MutationObserver((entries)=>{
+                for (let e of entries) {
+                    let w = $(e.target).width();
+                    if (w != previous_width)
+                    scanvas.width = (sound.innerWidth() - sound_op_left.outerWidth() - sound_op_right.outerWidth()) * 0.99;
+                    scanvas.style.width = scanvas.width + "px";
+                    previous_width = w;
+                }
+            });
+            observer.observe(sound[0], {
+              attributes: true,
+              attributeOldValue: true,
+              attributeFilter: ['style']
+            });
+        }
         audio.play();
     } else {
         audio = null;
+        sound.off("mouseenter");
+        sound.css({"opacity": "0.0"});
         ipcRenderer.send("command", command_name);
     }
 
@@ -214,66 +267,74 @@ function ask(command: any[]) {
     let candidates : any[] = command[1]["candidates"];
 
     let selection = $("#selection").html("").css({
-        "position": "absolute",
-        "top": y +"px",
-        "left": x + "px",
-        "z-index": "100",
-        "display": "block",
-        "border-color": "#000000",
-        "width": (direction == "horizontal" && line_size) ? (ofs_x * line_size) + "px" : "auto", 
-        "height": (direction == "vertical" && line_size) ? (ofs_y * line_size) + "px" : "auto" 
-    })
-    for (let c of candidates) {
-        $("<div>").html(c).css({
-            "font-size": fontsize.toString() + "px",
-            "font-weight": "700",
-            "flex-direction": (direction == "vertical")? "column": "row",
-            "color": color,
-            "display": (direction == "vertical")? "block": "inline-block",
-            "padding": "0",
-            "margin": "0",
-            "height": ofs_y,
-            "width": (direction == "vertical")? "auto": ofs_x + "px",
-            "z-index": fontsize.toString() + "px"
-        }).hover((ev) => {
-            $(ev.target).css({ "color": hcolor })
-        }, (ev) => {
-            $(ev.target).css({ "color": color })
-        }).mousedown((ev) =>{
-            $(ev.target).css({ "color": scolor })
-        }).click((ev) => {
-            selection.css({"display": "none"});
-            ipcRenderer.send("set-variable", options["variable"], c);
-            ipcRenderer.send("command", command_name);
-        }).appendTo(selection);
+        "display": "block"
+    });
+    let on_update = (ev?: Event) => {
+        let current_rate = window.innerWidth / window.innerHeight;
+        let orig_rate = screen_size[0] / screen_size[1];
+    
+        let scale = 1.0, offset_x = 0, offset_y = 0;
+        if (screen_size[0] != window.innerWidth) {
+            if (current_rate < orig_rate) {
+                scale = window.innerWidth / screen_size[0];
+                offset_y = (window.innerHeight - screen_size[1] * scale) / 2;
+            } else {
+                scale = window.innerHeight / screen_size[1];
+                offset_x = (window.innerWidth - screen_size[0] * scale) / 2;
+            }
+        }
+    
+        selection = $("#selection").html("").css({
+            "position": "absolute",
+            "top": (scale * y + offset_y) +"px",
+            "left": (scale * x + offset_x) + "px",
+            "z-index": "100",
+            "border-color": "#000000",
+            "width": (direction == "horizontal" && line_size) ? (scale * ofs_x * line_size) + "px" : "auto", 
+            "height": (direction == "vertical" && line_size) ? (scale * ofs_y * line_size) + "px" : "auto" 
+        })
+        for (let c of candidates) {
+            $("<div>").html(c).css({
+                "font-size": (fontsize*scale).toString() + "px",
+                "font-weight": "700",
+                "flex-direction": (direction == "vertical")? "column": "row",
+                "color": color,
+                "display": (direction == "vertical")? "block": "inline-block",
+                "padding": "0",
+                "margin": "0",
+                "height": (scale * ofs_y)+"px",
+                "width": (direction == "vertical")? "auto": (scale * ofs_x) + "px",
+                "z-index": (fontsize*scale).toString() + "px"
+            }).hover((ev) => {
+                $(ev.target).css({ "color": hcolor })
+            }, (ev) => {
+                $(ev.target).css({ "color": color })
+            }).mousedown((ev) =>{
+                $(ev.target).css({ "color": scolor })
+            }).click((ev) => {
+                selection.css({"display": "none"});
+                ipcRenderer.send("set-variable", options["variable"], c);
+                ipcRenderer.send("command", command_name);
+            }).appendTo(selection);
+        }
     }
+    $(window).on("resize", on_update);
+    on_update();
+
 }
 
 ipcRenderer.on("command", (event:any, command: any[]) => {
     if (!initialized) {
         initialized = true;
         let w : number = window.innerWidth, h : number = window.innerHeight;
-        $("#background").css({
-            "padding": "0",
-            "margin": "0",
-            "position": "absolute",
-            "top": "0",
-            "left": "0",
-            "z-index": "-1"
-        });
         let canvas : HTMLCanvasElement = document.getElementById("canvas") as HTMLCanvasElement;
         canvas.width = w;
         canvas.height = h;
-
-        $("#sound-progress").css({
-            "height": "24px",
-            "width": "available",
-            "padding": "0",
-            "margin": "0",
-            "vertical-align": "middle",
-            "flex-direction": "row"
-        })
-        let scanvas : HTMLCanvasElement = document.getElementById("sound-progress") as HTMLCanvasElement;
+        $(window).on("resize", (ev:Event) => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            image_renderer(canvas)();
+        });
     }
     command_name = command[0];
     if (command[0] == "scene") {
@@ -288,13 +349,26 @@ ipcRenderer.on("command", (event:any, command: any[]) => {
     }
 })
 
+ipcRenderer.on("fullscreen", (event: any, value: boolean) => {
+    fullscreen = value;
+    console.log("fullscreen="+value)
+})
+
+ipcRenderer.on("screen", (event: any, value: [number, number]) => {
+    screen_size = value;
+    console.log("screen="+value)
+})
+
 window.onkeydown = (event: KeyboardEvent) => {
     if (event.key == 'Enter' && audio) {
         audio.pause();
-        ipcRenderer.send("command", command_name)
+        ipcRenderer.send("command", command_name);
         audio = null;
+    }
+    if (event.key == 'Escape') {
+        ipcRenderer.send("fullscreen", false);
     }
 }
 
 // Start communication between GUI frontend and backend.
-ipcRenderer.send("command",command_name);
+ipcRenderer.send("start");

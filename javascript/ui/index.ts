@@ -94,7 +94,6 @@ function scene(command: any[]) {
     }
 
     if (command[1]) {
-        var timeout_id : number = null;
         audio = new Audio(command[1]);
         let audio_rewind   = ()=>{ audio.currentTime = 0;}
         let audio_rewind10 = ()=>{ audio.currentTime -= 10;}
@@ -103,13 +102,13 @@ function scene(command: any[]) {
             audio.pause();
             ipcRenderer.send("command", command_name)
             audio = null;
-            window.clearTimeout(timeout_id);
         }
+        let audio_mute     = ()=>{ audio.muted = true;  }
+        let audio_unmute   = ()=>{ audio.muted = false; }
         let scenario_terminate = () => {
             audio.pause();
             ipcRenderer.send("terminate", command_name)
             audio = null;
-            window.clearTimeout(timeout_id);
         }
         let sound_operations : {[key:string]: [string, string, ()=>void]}[] = [
             {"Previous": ["⏮", "Previous", audio_rewind]},
@@ -117,10 +116,11 @@ function scene(command: any[]) {
             {"Pause": ["⏸", "Play", ()=>{audio.pause()}], "Play": ["⏵", "Pause", ()=>{audio.play()}] },
             {"Forward": ["⏩", "Forward", audio_forward10]},
             {"Next": ["⏭", "Next", audio_forward]},
+            {"Mute": ["🔈", "Unmute", audio_mute], "Unmute": ["🔇", "Mute", audio_unmute]},
             {"Cancel": ["⏹", "Cancel", scenario_terminate ]}
         ]
         let operation_states = [
-            "Previous", "Backward", "Pause", "Forward", "Next", "Cancel"
+            "Previous", "Backward", "Pause", "Forward", "Next", "Mute", "Cancel"
         ]
 
         let update_progress = () => {
@@ -129,46 +129,67 @@ function scene(command: any[]) {
                 let canvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
                 let w = canvas.width, h = canvas.height;
                 let ctx = canvas.getContext('2d');
-                ctx.fillStyle = "rgb(96,128,244)";
+//                ctx.fillStyle = "rgb(96,128,244)";
+                ctx.fillStyle = "white";
                 ctx.fillRect(0, 0, w * rate, 32);
                 ctx.fillStyle = "rgb(96, 96, 96)";
                 ctx.fillRect(w * rate, 0, w - w * rate, 32);
             }
         }
-        let progress = () => { 
-            update_progress();
-            timeout_id = window.setTimeout(progress, 1000);
-        }
-        timeout_id = window.setTimeout(progress, 1000);
+        audio.ontimeupdate = update_progress;
 
         let scanvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
-            $(scanvas).off("mousedown").on("mousedown", (ev: Event) => {
+        $(scanvas).off("mousedown").on("mousedown", (ev: Event) => {
             let mev = ev as MouseEvent;
             if (audio && audio.duration > 0) {
-                let rate = mev.x / scanvas.width;
+                let rate = mev.offsetX   / scanvas.width;
                 audio.currentTime = rate * audio.duration;
-                update_progress();
             }
         });
 
         audio.onended = function(event:Event) {
-            window.clearTimeout(timeout_id);
             ipcRenderer.send("command", command_name);
             audio = null;
         }
-        let sound = $("#sound-ops").html("");
+        let sound_op_area = $("#sound-ops").html("");
+        //$(sound).append(audio)
+        //audio.controls = true;
         for (let i =0; i < operation_states.length; i++) {
             let cmd : {[key: string]: [string, string, ()=>void]} = sound_operations[i];
-            $("<div>").html(cmd[operation_states[i]][0]).css({
-                "display": "inline", 
-                "font-size": "64px"
+            $("<span>").html(cmd[operation_states[i]][0]).css({
+                "margin-left": (i == 0)? "28px": "8",
+                "margin-top": "8",
+                "margin-bottom": "8",
+                "display": "inline-block", 
+                "font-size": "32px",
+                "width": "48px",
+                "height": "48px",
+                "text-align": "center",
+                "border-radius": "50%",
+            }).hover((ev)=>{
+                $(ev.target).css({ "color": "inherit", "background-color": "#808080" })
+            }, (ev)=>{
+                $(ev.target).css({ "color": "inherit", "background-color": "transparent" })
+            }).on("mousedown", (ev:Event) => {
+                $(ev.target).css({ "color": "black", "background-color": "white" })
             }).on("click", (ev:Event) => {
+                $(ev.target).css({ "color": "inherit", "background-color": "transparent" })
                 let states : string = operation_states[i];
                 cmd[states][2]();
                 operation_states[i] = cmd[states][1];
                 $(ev.target).html(sound_operations[i][cmd[states][1]][0]);
-            }).appendTo(sound);
+            }).appendTo(sound_op_area);
         }
+        let sound = $("#sound");
+        scanvas.width = (sound.innerWidth() - sound_op_area.outerWidth()) * 0.95;
+        scanvas.style.width = scanvas.width + "px";
+        sound.off("mouseenter");
+        sound.off("mouseleave");
+        sound.hover((ev) => {
+            sound.fadeTo(250, 0.5);
+        }, (ev) => {
+            sound.fadeTo(250, 0.0);
+        })
         audio.play();
     } else {
         audio = null;
@@ -245,18 +266,14 @@ ipcRenderer.on("command", (event:any, command: any[]) => {
         canvas.height = h;
 
         $("#sound-progress").css({
-            "position": "absolute",
-            "height": "32px",
-            "width": w + "px",
-            "z-index": "1",
-            "top": (h - 32).toString()+"px",
-            "left": "0",
-            "opacity": "0.5",
+            "height": "24px",
+            "width": "available",
+            "padding": "0",
+            "margin": "0",
+            "vertical-align": "middle",
             "flex-direction": "row"
         })
         let scanvas : HTMLCanvasElement = document.getElementById("sound-progress") as HTMLCanvasElement;
-        scanvas.width = w;
-        scanvas.height = 32;
     }
     command_name = command[0];
     if (command[0] == "scene") {

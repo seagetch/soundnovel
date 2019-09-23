@@ -73,12 +73,15 @@ class ScenarioPlayer {
     async execute_scenario(event: any): Promise<any> {
         var gen = this.scenario.run();
         for (let i: any = gen.next(); !i.done; i = gen.next()) {
-            let command: scenario.Command | void = i.value;
-            event = await this.exec_cmd(event, command).catch((reason: any) => {
+            let command: scenario.Command|void = i.value;
+            try {
+                event = await this.exec_cmd(event, command);
+            }catch(reason) {
                 console.log("rejected. event:" + reason)
                 this.scenario.force(Array.from(this.scenario.config["failure"] || []));
                 gen = this.scenario.loop(null);
-            });
+                event = reason;
+            }
         }
         this.screen.reload();
         return this.receive_cmds();

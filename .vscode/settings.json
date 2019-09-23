@@ -1,0 +1,7 @@
+{
+  "editor.fontFamily": "'Cascadia Code', 'Source code Pro', 'Droid Sans Mono', 'monospace', monospace, 'Droid Sans Fallback'",
+  "editor.fontLigatures": true,
+  "files.exclude": {
+    "node_modules/": "explorerExcludedFiles"
+  }
+}

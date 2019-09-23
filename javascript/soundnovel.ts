@@ -1,10 +1,10 @@
 
 import path = require("path");
 import fs   = require("fs");
-import yaml = require('js-yaml');
+import yaml = require("js-yaml");
 
 import { scenario } from "./scenario/scenario";
-const { app, BrowserWindow, ipcMain } = require('electron')
+import electron = require("electron")
 
 class ScenarioPlayer {
     private scenario: scenario.Scenario;
@@ -15,20 +15,20 @@ class ScenarioPlayer {
 
     receive_cmds() : Promise<any> {
         return new Promise<any>( (resolve, reject)=>{
-            ipcMain.once("command", (event: any, name: string) => {
+            electron.ipcMain.once("command", (event: any, name: string) => {
                 if (name == "")
                     this.title(event)
                 else
                     resolve(event);
             })
-            ipcMain.removeAllListeners("terminate");
-            ipcMain.once("terminate", (event: any, name: string) => {
+            electron.ipcMain.removeAllListeners("terminate");
+            electron.ipcMain.once("terminate", (event: any, name: string) => {
                 reject(event);
             })
         });
     }
     receive_others() {
-        ipcMain.on("set-variable", (event: any, name:string, value:string) => {
+        electron.ipcMain.on("set-variable", (event: any, name:string, value:string) => {
             this.scenario.variables[name] = value;
         })
     }
@@ -72,28 +72,22 @@ class ScenarioPlayer {
         }
     }
 
-    execute_scenario(event: any) : Promise<any> {
+    async execute_scenario(event: any) : Promise<any> {
         var gen = this.scenario.run();
-        let next_command = (event: any) : Promise<any> => {
-            let i : any = gen.next();
-            if (!i.done) {
-                let command : scenario.Command|void = i.value;
-                return this.exec_cmd(event, command).then(next_command).catch((reason:any) => {
-                    console.log("rejected. event:"+reason)
-                    this.scenario.force(Array.from(this.scenario.config["failure"] || []));
-                    gen = this.scenario.loop(null);
-                    return next_command(reason);
-                });
-            } else {
-                this.screen.reload();
-                return this.receive_cmds();
-            }
+        for (let i : any = gen.next(); !i.done; i = gen.next()) {
+            let command : scenario.Command|void = i.value;
+            await this.exec_cmd(event, command).catch((reason:any) => {
+                console.log("rejected. event:"+reason)
+                this.scenario.force(Array.from(this.scenario.config["failure"] || []));
+                gen = this.scenario.loop(null);
+            });
         }
-        return next_command(event);
+        this.screen.reload();
+        return this.receive_cmds();
     }
 
     run() {
-        let filename = process.argv[2];
+        let filename = process.argv[process.argv.length - 1];
         let root_path = path.dirname(filename);
         
         console.log("Reading config ("+filename+")")
@@ -105,14 +99,17 @@ class ScenarioPlayer {
 
         let size = config["screen"]["size"];
         let w = size[0], h = size[1];
-        let x = w / 2, y = h / 2;
-
+        let point = electron.screen.getCursorScreenPoint();
+        let display = electron.screen.getDisplayNearestPoint(point);
+        
         // Create the browser window.
-        this.screen = new BrowserWindow({
+        this.screen = new electron.BrowserWindow({
+            x: display.bounds.x + (display.bounds.width - w) / 2,
+            y: display.bounds.y + (display.bounds.height - h) / 2,
             width: w,
             height: h,
             webPreferences: {
-            nodeIntegration: true
+                nodeIntegration: true
             }
         })
         this.screen.setMenuBarVisibility(false);
@@ -127,9 +124,8 @@ class ScenarioPlayer {
 
 
 let scenario_test = () => {
-    let filename = process.argv[2];
+    let filename = process.argv[process.argv.length - 1];
     let root_path = path.dirname(filename);
-    
     console.log("Reading config ("+filename+")")
     
     const yamlText = fs.readFileSync(filename, 'utf8')
@@ -157,4 +153,4 @@ let scenario_test = () => {
 
 //scenario_test();
 let gui = new ScenarioPlayer();
-app.on('ready', () => {gui.run()});
+electron.app.on('ready', () => {gui.run()});

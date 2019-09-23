@@ -3,7 +3,7 @@
     "compilerOptions": {
         "module": "commonJS",
         "target": "es5",
-        "lib": ["es2015", "es2015.iterable", "dom"],
+        "lib": ["es6","dom"],
         "declaration": true,
         "noImplicitAny": true,
         "removeComments": true,

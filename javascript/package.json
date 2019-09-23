@@ -4,11 +4,6 @@
   "description": "Simple sound novel player for sound-artworks.",
   "main": "soundnovel.js",
   "dependencies": {
-    "@types/electron": "^1.6.10",
-    "@types/glob": "^7.1.1",
-    "@types/jquery": "^3.3.31",
-    "@types/js-yaml": "^3.12.1",
-    "@types/node": "^12.7.5",
     "electron": "^6.0.9",
     "fs": "0.0.1-security",
     "glob": "^7.1.4",
@@ -16,11 +11,22 @@
     "js-yaml": "^3.13.1",
     "path": "^0.12.7"
   },
-  "devDependencies" : {
+  "devDependencies": {
+    "@types/electron": "^1.6.10",
+    "@types/glob": "^7.1.1",
+    "@types/jquery": "^3.3.31",
+    "@types/js-yaml": "^3.12.1",
+    "@types/node": "^12.7.5",
+    "ts-loader": "^6.1.2",
+    "typescript": "^3.6.3",
+    "webpack": "^4.40.2",
+    "webpack-cli": "^3.3.9",
+    "webpack-merge": "^4.2.2"
   },
   "scripts": {
-    "start": "electron ."
-
+    "start": "electron .",
+    "build": "webpack",
+    "watch": "webpack -w"
   },
   "author": "seagetch",
   "license": "Apache2.0"

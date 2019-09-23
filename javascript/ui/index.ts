@@ -1,60 +1,96 @@
 const { ipcRenderer } = require('electron');
 
 var command_name : string = "";
-var audio : HTMLAudioElement;
-var image_resource : HTMLImageElement | HTMLCanvasElement = null;
+//var audio : HTMLAudioElement;
+//var image_resource : HTMLImageElement | HTMLCanvasElement = null;
 var fullscreen = false;
 var initialized = false;
 var screen_size = [window.innerWidth, window.innerHeight];
 
-function image_renderer(canvas: HTMLCanvasElement) {
-    let ctx = canvas.getContext('2d');
-    return (ev?: Event) => {
-        let dest_rate = canvas.width / canvas.height;
-        if (image_resource) {
-            let src_rate  = image_resource.width / image_resource.height;
-            if (src_rate > dest_rate) {
-                let y = image_resource.height * canvas.width / image_resource.width;
-                ctx.fillStyle = "rgb(0, 0, 0)";
-                ctx.fillRect(0,                       0, canvas.width, (canvas.height - y) / 2);
-                ctx.fillRect(0, (canvas.height + y) / 2, canvas.width, (canvas.height - y) / 2);
-            ctx.drawImage(image_resource, 0, 0, image_resource.width, image_resource.height, 0, (canvas.height - y) / 2, canvas.width, y);
-            } else {
-                let x = image_resource.width * canvas.height / image_resource.height;
-                ctx.fillStyle = "rgb(0, 0, 0)";
-                ctx.fillRect(                     0, 0, (canvas.width - x) / 2, canvas.height);
-                ctx.fillRect((canvas.width + x) / 2, 0, (canvas.width - x) / 2, canvas.height);
-                ctx.drawImage(image_resource, 0, 0, image_resource.width, image_resource.height, (canvas.width - x) / 2, 0, x, canvas.height);
-            }
-        } else {
-            ctx.fillStyle = "rgb(0, 0, 0)";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+function on_element_resize(element: JQuery<any>, callback: (element: JQuery<any>)=>void) {
+    let previous_width : number = element.width();
+    let observer = new MutationObserver((entries)=>{
+        for (let e of entries) {
+            let w = $(e.target).width();
+            if (w != previous_width)
+                callback(element);
+            previous_width = w;
         }
-    };
+    });
+    observer.observe(element[0], {
+      attributes: true,
+      attributeOldValue: true,
+      attributeFilter: ['style']
+    });
+    return observer;
+}
+function on_canvas_resize(element: JQuery<any>, callback: (element: JQuery<any>)=>void) {
+    let observer = new MutationObserver((entries)=>{
+        for (let e of entries) {
+            callback(element);
+        }
+    });
+    observer.observe(element[0], {
+      attributes: true,
+      attributeOldValue: true,
+      attributeFilter: ['width', 'height']
+    });
+    return observer;
 }
 
-function scene(command: any[]) {
-    let image_src : any = command[2];
+class ImageViewer {
+    private image_resource : HTMLImageElement | HTMLCanvasElement = null;
+    private canvas: HTMLCanvasElement;
 
-    let canvas : HTMLCanvasElement = document.getElementById('canvas') as HTMLCanvasElement;
-    if (Array.isArray(image_src)) {
-        let off_canvas : HTMLCanvasElement = $("<canvas>").get()[0] as HTMLCanvasElement
-        let off_ctx = off_canvas.getContext('2d');
-        switch (image_src[0]) {
-        case "truncate": {
-            let i = new Image();
-            let bounds : [[number, number], [number, number]] = image_src[2]
-            i.onload = (ev: Event) => {
-                off_canvas.width = i.width * bounds[1][0];
-                off_canvas.height = i.height * bounds[1][1];
-                off_ctx.drawImage(i, i.width * bounds[0][0], i.height * bounds[0][1], off_canvas.width, off_canvas.height, 0, 0, off_canvas.width, off_canvas.height);
-                image_resource = off_canvas;
-                image_renderer(canvas)();
+    image_renderer(canvas: HTMLCanvasElement) {
+        let ctx = canvas.getContext('2d');
+        return (ev?: Event) => {
+            let dest_rate = canvas.width / canvas.height;
+            if (this.image_resource) {
+                let src_rate  = this.image_resource.width / this.image_resource.height;
+                if (src_rate > dest_rate) {
+                    let y = this.image_resource.height * canvas.width / this.image_resource.width;
+                    ctx.fillStyle = "rgb(0, 0, 0)";
+                    ctx.fillRect(0,                       0, canvas.width, (canvas.height - y) / 2);
+                    ctx.fillRect(0, (canvas.height + y) / 2, canvas.width, (canvas.height - y) / 2);
+                ctx.drawImage(this.image_resource, 0, 0, this.image_resource.width, this.image_resource.height, 0, (canvas.height - y) / 2, canvas.width, y);
+                } else {
+                    let x = this.image_resource.width * canvas.height / this.image_resource.height;
+                    ctx.fillStyle = "rgb(0, 0, 0)";
+                    ctx.fillRect(                     0, 0, (canvas.width - x) / 2, canvas.height);
+                    ctx.fillRect((canvas.width + x) / 2, 0, (canvas.width - x) / 2, canvas.height);
+                    ctx.drawImage(this.image_resource, 0, 0, this.image_resource.width, this.image_resource.height, (canvas.width - x) / 2, 0, x, canvas.height);
+                }
+            } else {
+                ctx.fillStyle = "rgb(0, 0, 0)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
-            i.src=image_src[1]
-        } break;
-        case "horizontal":
-        case "vertical": {
+        };
+    }
+
+    constructor (canvas : HTMLCanvasElement) {
+        this.canvas = canvas;
+    }
+
+    truncated_load(filename: string, bounds:[[number, number], [number, number]]) {
+        let canvas : HTMLCanvasElement = $("<canvas>").get()[0] as HTMLCanvasElement
+        return new Promise((resolve, reject) => {
+            let i = new Image();
+            let ctx = canvas.getContext('2d');
+            i.onload = (ev: Event) => {
+                canvas.width = i.width * bounds[1][0];
+                canvas.height = i.height * bounds[1][1];
+                ctx.drawImage(i, i.width * bounds[0][0], i.height * bounds[0][1], canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+                resolve(canvas);
+            }
+            i.src=filename;
+        })
+    }
+
+    tiled_load(image_src: any[]) {
+        let off_canvas : HTMLCanvasElement = $("<canvas>").get()[0] as HTMLCanvasElement
+        return new Promise((resolve, reject) => {
+            let ctx = off_canvas.getContext('2d');
             Promise.all((image_src.slice(1, image_src.length) as string[]).map((elem: string) : Promise<HTMLImageElement> => {
                 let i : HTMLImageElement = new Image() as HTMLImageElement;
                 return new Promise((resolve, reject) => {
@@ -82,173 +118,319 @@ function scene(command: any[]) {
                 off_canvas.height = h;
                 var x = 0, y = 0;
                 for (let i of images) {
-                    off_ctx.drawImage(i, x, y);
+                    ctx.drawImage(i, x, y);
                     x += ofs_x * i.width;
                     y += ofs_y * i.height;
                 }
-                image_resource = off_canvas;
-                image_renderer(canvas)();
-            });
-        } break;
-        default:
-            console.log("Unknown command: "+image_src[0])
-        }
-        
-    } else if (typeof image_src == "string") {
-        let image = new Image();
-        image.onload = (ev) => {
-            image_resource = image;
-            image_renderer(canvas)(ev);
-        }
-        image.src = image_src as string;
-    } else {
-        alert("Unknows image src="+image_src)
+                resolve(off_canvas);
+            });    
+        })
     }
 
-    let sound = $("#sound");
-    if (command[1]) {
-        audio = new Audio(command[1]);
-        let observer : MutationObserver = null;
-        let audio_rewind   = ()=>{ audio.currentTime = 0;}
-        let audio_rewind10 = ()=>{ audio.currentTime -= 10;}
-        let audio_forward10 = ()=>{ audio.currentTime += 10;}
-        let audio_forward   = ()=>{
-            audio.pause();
-            if (observer)
-                observer.disconnect();
-            ipcRenderer.send("command", command_name)
-            audio = null;
-        }
-        let audio_mute     = ()=>{ audio.muted = true;  }
-        let audio_unmute   = ()=>{ audio.muted = false; }
-        let scenario_terminate = () => {
-            audio.pause();
-            if (observer)
-                observer.disconnect();
-            ipcRenderer.send("terminate", command_name)
-            audio = null;
-        }
-        let set_fullscreen   = ()=>{ipcRenderer.send("fullscreen", true);}
-        let set_unfullscreen = ()=>{ipcRenderer.send("fullscreen", false);}
-        let sound_operations : {[key:string]: [string, string, ()=>void, string]}[] = [
-            {"Previous": ["⏮", "Previous", audio_rewind, "left"]},
-            {"Backward": ["⏪", "Backward", audio_rewind10, "left"]},
-            {"Pause": ["⏸", "Play", ()=>{audio.pause()}, "left"], "Play": ["⏵", "Pause", ()=>{audio.play()}, "left"] },
-            {"Forward": ["⏩", "Forward", audio_forward10, "left"]},
-            {"Next": ["⏭", "Next", audio_forward, "left"]},
-            {"Mute": ["🔈", "Unmute", audio_mute, "right"], "Unmute": ["🔇", "Mute", audio_unmute, "right"]},
-            {"Cancel": ["⏹", "Cancel", scenario_terminate, "left"]},
-            {"Fullscreen": ["⊞", "Unfullscreen", set_fullscreen, "right"], "Unfullscreen": ["⊟", "Fullscreen", set_unfullscreen, "right"] },
-        ]
-        let operation_states = [
-            "Previous", "Backward", "Pause", "Forward", "Next", "Mute", "Cancel", fullscreen? "Unfullscreen":"Fullscreen"
-        ]
+    file_load(filename: string) {
+        return new Promise((resolve, reject) => {
+            let image = new Image();
+            image.onload = (ev) => {
+                resolve(image);
+            }
+            image.src = filename;
+        });
+    }
 
-        let update_progress = () => {
-            if (audio) {
-                let rate = audio.currentTime / audio.duration;
-                let canvas : HTMLCanvasElement = document.getElementById('sound-progress') as HTMLCanvasElement;
-                let w = canvas.width, h = canvas.height;
-                let ctx = canvas.getContext('2d');
+
+    load (image_src: any) {
+        if (!$(this.canvas).attr("observer")) {
+            let canvas_observer = on_canvas_resize($(this.canvas), (elem)=>{
+                this.image_renderer(this.canvas)();
+            });
+            $(this.canvas).attr("observer", 1);
+        }
+        let promise : Promise<any> = null;
+        if (Array.isArray(image_src)) {
+            switch (image_src[0]) {
+            case "truncate":
+                promise = this.truncated_load(image_src[1], image_src[2]);
+                break;
+            case "horizontal":
+            case "vertical":
+                promise = this.tiled_load(image_src);
+                break;
+            default:
+                console.log("Unknown command: "+image_src[0])
+            }
+        } else if (typeof image_src == "string")
+            promise = this.file_load(image_src);
+
+        if (promise) {
+            promise.then((canvas:HTMLCanvasElement)=> {
+                this.image_resource = canvas;
+                this.image_renderer(this.canvas)();    
+            })
+        } else {
+            alert("Unknows image src="+image_src)
+        }
+    }
+};
+
+class AudioPlayer {
+    private sound : JQuery<any>;
+    private audio: HTMLAudioElement = null;
+    private observer: MutationObserver = null;
+    constructor(sound: JQuery<any>) {
+        this.sound = sound;
+    }
+
+    create_audio(filename: string): HTMLAudioElement {
+        return new Audio(filename);
+    }
+
+    generate_button(button_info: any) {
+        let cmd : {[key: string]: [string, string, ()=>void]} = button_info.command;
+        let button = $("<span>").attr("id", button_info.name).css({
+            "margin-left": "0",
+            "margin-top": "8",
+            "margin-bottom": "8",
+            "display": "inline-block", 
+            "font-size": "32px",
+            "width": "48px",
+            "height": "48px",
+            "text-align": "center",
+            "border-radius": "50%",
+        }).hover((ev)=>{
+            let target = $(ev.target);
+            if (ev.buttons & 1)
+            target.css({ "color": "black", "background-color": "white" })
+            else
+                target.css({ "color": "inherit", "background-color": "#808080" })
+        }, (ev)=>{
+            let target = $(ev.target);
+            target.css({ "color": "inherit", "background-color": "transparent" })
+        }).on("mousedown", (ev) => {
+            let target = $(ev.target);
+            if (ev.buttons & 1)
+                target.css({ "color": "black", "background-color": "white" })
+            else
+                target.css({ "color": "inherit", "background-color": "#808080" })
+        }).on("mouseup", (ev) => {
+            let target = $(ev.target);
+            target.css({ "color": "inherit", "background-color": "transparent" })
+            if (ev.button == 0) {
+                let states : string = $(ev.target).attr("states");
+                cmd[states][2]();
+            }
+        })
+        // Watching "state" attribute of the button.
+        new MutationObserver((entries) => {
+            for (let e of entries) {
+                let states = $(e.target).attr("states");
+                $(e.target).html(button_info.command[states][0]);
+            }
+        }).observe(button[0], {
+            attributes: true,
+            attributeFilter: ["states"]
+        });
+        button.attr("states", button_info.state());
+        return button;
+    }
+
+    bind_events() {
+        // Update progress bar 
+        let scanvas : HTMLCanvasElement = this.sound.find('#sound-progress')[0] as HTMLCanvasElement;
+
+        $(this.audio).on("ended", (event:Event) => {
+            if (this.observer)
+                this.observer.disconnect();
+            ipcRenderer.send("command", command_name);
+            this.audio = null;
+        });
+
+        // Connecting audio and Progress bar.
+        $(this.audio).on("timeupdate", () => {
+            if (this.audio) {
+                let rate = this.audio.currentTime / this.audio.duration;
+                let w = scanvas.width, h = scanvas.height;
+                let ctx = scanvas.getContext('2d');
                 ctx.fillStyle = "white";
                 ctx.fillRect(0, 0, w * rate, 32);
                 ctx.fillStyle = "rgb(96, 96, 96)";
                 ctx.fillRect(w * rate, 0, w - w * rate, 32);
             }
-        }
-        audio.ontimeupdate = update_progress;
+        });
 
-        let scanvas : HTMLCanvasElement = $('#sound-progress').get()[0] as HTMLCanvasElement;
         $(scanvas).off("mousedown").on("mousedown", (ev: Event) => {
             let mev = ev as MouseEvent;
-            if (audio && audio.duration > 0) {
+            if (this.audio && this.audio.duration > 0) {
                 let rate = mev.offsetX   / scanvas.width;
-                audio.currentTime = rate * audio.duration;
+                this.audio.currentTime = rate * this.audio.duration;
             }
         });
 
-        audio.onended = function(event:Event) {
-            if (observer)
-                observer.disconnect();
-            ipcRenderer.send("command", command_name);
-            audio = null;
-        }
-        let sound_op_left = $("#sound-ops").html("");
-        let sound_op_right = $("#sound-ops-right").html("");
-        for (let i =0; i < operation_states.length; i++) {
-            let cmd : {[key: string]: [string, string, ()=>void, string]} = sound_operations[i];
-            $("<span>").html(cmd[operation_states[i]][0]).css({
-                "margin-left": "0",
-                "margin-top": "8",
-                "margin-bottom": "8",
-                "display": "inline-block", 
-                "font-size": "32px",
-                "width": "48px",
-                "height": "48px",
-                "text-align": "center",
-                "border-radius": "50%",
-            }).hover((ev)=>{
-                let target = $(ev.target);
-                if (ev.buttons & 1)
-                   target.css({ "color": "black", "background-color": "white" })
-                else
-                    target.css({ "color": "inherit", "background-color": "#808080" })
-            }, (ev)=>{
-                let target = $(ev.target);
-                target.css({ "color": "inherit", "background-color": "transparent" })
-            }).on("mousedown", (ev) => {
-                let target = $(ev.target);
-                if (ev.buttons & 1)
-                    target.css({ "color": "black", "background-color": "white" })
-                else
-                    target.css({ "color": "inherit", "background-color": "#808080" })
-            }).on("mouseup", (ev) => {
-                let target = $(ev.target);
-                target.css({ "color": "inherit", "background-color": "transparent" })
-                if (ev.button == 0) {
-                    let states : string = operation_states[i];
-                    cmd[states][2]();
-                    operation_states[i] = cmd[states][1];
-                    $(ev.target).html(sound_operations[i][cmd[states][1]][0]);
-                }
-            }).appendTo((cmd[operation_states[i]][3] == "left")?sound_op_left:sound_op_right);
-        }
-        scanvas.width = (sound.innerWidth() - sound_op_left.outerWidth() - sound_op_right.outerWidth()) * 0.99;
-        scanvas.style.width = scanvas.width + "px";
-        sound.off("mouseenter");
-        sound.off("mouseleave");
-        sound.hover((ev) => {
-            sound.fadeTo(250, 0.5);
-        }, (ev) => {
-            sound.fadeTo(250, 0.0);
-        })
+        // Connecting button state with media states.
+        $(this.audio).on("pause", () => {
+            this.sound.find("#Play").attr("states", "Play")
+        });
 
+        $(this.audio).on("play", () => {
+            this.sound.find("#Play").attr("states", "Pause")
+        });
+        $(this.audio).on("volumechange", () => {
+            if (this.audio.muted) {
+                this.sound.find("#Mute").attr("states", "Unmute")
+            } else
+                this.sound.find("#Mute").attr("states", "Mute")
+        });
 
-        {
-            let previous_width : number = sound.width();
-            observer = new MutationObserver((entries)=>{
-                for (let e of entries) {
-                    let w = $(e.target).width();
-                    if (w != previous_width)
-                    scanvas.width = (sound.innerWidth() - sound_op_left.outerWidth() - sound_op_right.outerWidth()) * 0.99;
-                    scanvas.style.width = scanvas.width + "px";
-                    previous_width = w;
-                }
-            });
-            observer.observe(sound[0], {
-              attributes: true,
-              attributeOldValue: true,
-              attributeFilter: ['style']
-            });
+        // Adding popup capabilities for sound panel.
+        let sound_op_left  = this.sound.find("#sound-ops")
+        let sound_op_right = this.sound.find("#sound-ops-right")
+
+        this.sound.off("mouseenter").on("mouseenter", (ev) => {
+            this.sound.fadeTo(250, 0.5);
+        });
+        this.sound.off("mouseleave").on("mouseleave", (ev) => {
+            this.sound.fadeTo(250, 0.0);
+        });
+
+        // Resizing progress bar on window resize event.
+        let progress_size = (elem?: any) => {
+            scanvas.width = (this.sound.innerWidth() - sound_op_left.outerWidth() - sound_op_right.outerWidth()) - 20;
+            scanvas.style.width = scanvas.width + "px";
         }
-        audio.play();
-    } else {
-        audio = null;
-        sound.off("mouseenter");
-        sound.css({"opacity": "0.0"});
-        ipcRenderer.send("command", command_name);
+        this.observer = on_element_resize(this.sound, progress_size);
+        progress_size();
+    }
+    
+    load(filename: string) {
+        // Playing sound.
+        if (filename) {
+            this.audio = this.create_audio(filename);
+            let audio_rewind   = ()=>{ this.audio.currentTime = 0;}
+            let audio_rewind10 = ()=>{ this.audio.currentTime -= 10;}
+            let audio_forward10 = ()=>{ this.audio.currentTime += 10;}
+            let audio_forward   = ()=>{
+                this.audio.pause();
+                if (this.observer)
+                    this.observer.disconnect();
+                ipcRenderer.send("command", command_name)
+                this.audio = null;
+            }
+            let audio_mute     = ()=>{ this.audio.muted = true;  }
+            let audio_unmute   = ()=>{ this.audio.muted = false; }
+            let scenario_terminate = () => {
+                this.audio.pause();
+                if (this.observer)
+                    this.observer.disconnect();
+                ipcRenderer.send("terminate", command_name)
+                this.audio = null;
+            }
+            let set_fullscreen   = ()=>{ipcRenderer.send("fullscreen", true);}
+            let set_unfullscreen = ()=>{ipcRenderer.send("fullscreen", false);}
+
+            let buttons: {
+                name: string, 
+                state: ()=>string, 
+                side:string, 
+                command: {[key: string]: [string, string, ()=>void]} 
+            }[] = [
+                {
+                    name: "Previous", 
+                    state: ()=>{ return "Previous";}, 
+                    side: "left", 
+                    command: {"Previous": ["⏮", "Previous", audio_rewind]}
+                }, 
+                {
+                    name: "Backward", 
+                    state: ()=>{ return "Backward";},
+                    side: "left",
+                    command: {"Backward": ["⏪", "Backward", audio_rewind10]}
+                },
+                {
+                    name: "Play", 
+                    state: () => { return this.audio.paused ? "Play": "Paused" },
+                    side: "left",
+                    command: {
+                        "Pause": ["⏸", "Play", ()=>{this.audio.pause()}], 
+                        "Play": ["⏵", "Pause", ()=>{this.audio.play()}] 
+                    }
+                }, 
+                {
+                    name: "Forward", 
+                    state: () => {return "Forward"},
+                    side: "left",
+                    command: {"Forward": ["⏩", "Forward", audio_forward10]}
+                }, 
+                {
+                    name: "Next", 
+                    state: () =>{ return "Next"},
+                    side: "left",
+                    command: {"Next": ["⏭", "Next", audio_forward]}
+                },
+                {
+                    name: "Mute", 
+                    state: ()=> { return this.audio.muted? "Unmute": "Mute"},
+                    side: "right",
+                    command: {
+                        "Mute": ["🔈", "Unmute", audio_mute], 
+                        "Unmute": ["🔇", "Mute", audio_unmute]
+                    }
+                },
+                {
+                    name: "Cancel", 
+                    state: ()=>{ return "Cancel"},
+                    side: "left",
+                    command: {"Cancel": ["⏹", "Cancel", scenario_terminate]}
+                }, 
+                {
+                    name: "Fullscreen", 
+                    state: ()=>{return fullscreen? "Unfullscreen":"Fullscreen"},
+                    side: "right",
+                    command: {
+                        "Fullscreen": ["⊞", "Unfullscreen", set_fullscreen],
+                        "Unfullscreen": ["⊟", "Fullscreen", set_unfullscreen] 
+                    }
+                }
+            ]
+
+            // Generating buttons.
+            let sound_op_left = this.sound.find("#sound-ops").html("");
+            let sound_op_right = this.sound.find("#sound-ops-right").html("");
+            for (let i =0; i < buttons.length; i++) {
+                let button = this.generate_button(buttons[i]);
+                button.appendTo((buttons[i].side == "left")?sound_op_left:sound_op_right);
+            }
+
+            // Binding event handlers.
+            this.bind_events();
+
+        } else {
+            this.audio = null;
+            this.sound.off("mouseenter");
+            this.sound.css({"opacity": "0.0"});
+        }        
     }
 
+    play() : void {
+        if (this.audio)
+            this.audio.play();
+        else {
+            ipcRenderer.send("command", command_name);
+        }
+    }
+}
+
+var image_viewer : ImageViewer = null;
+function scene(command: any[]) {
+    // Displaying image.
+    let image_src : any = command[2];
+    let canvas : HTMLCanvasElement = $("#canvas")[0] as HTMLCanvasElement;
+    if (!image_viewer)
+        image_viewer = new ImageViewer(canvas);
+    image_viewer.load(image_src);
+
+    // Playing sound.
+    let audio_player : AudioPlayer = new AudioPlayer($("#sound"));
+    audio_player.load(command[1]);
+    audio_player.play();
 }
 
 function ask(command: any[]) {
@@ -269,7 +451,8 @@ function ask(command: any[]) {
     let selection = $("#selection").html("").css({
         "display": "block"
     });
-    let on_update = (ev?: Event) => {
+    let observer : MutationObserver = null;
+    let on_update = (ev?: JQuery<any>) => {
         let current_rate = window.innerWidth / window.innerHeight;
         let orig_rate = screen_size[0] / screen_size[1];
     
@@ -313,12 +496,14 @@ function ask(command: any[]) {
                 $(ev.target).css({ "color": scolor })
             }).click((ev) => {
                 selection.css({"display": "none"});
+                if (observer)
+                    observer.disconnect();
                 ipcRenderer.send("set-variable", options["variable"], c);
                 ipcRenderer.send("command", command_name);
             }).appendTo(selection);
         }
     }
-    $(window).on("resize", on_update);
+    observer = on_element_resize(selection, on_update);
     on_update();
 
 }
@@ -333,7 +518,7 @@ ipcRenderer.on("command", (event:any, command: any[]) => {
         $(window).on("resize", (ev:Event) => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            image_renderer(canvas)();
+            $("#selection").width(1);
         });
     }
     command_name = command[0];
@@ -351,8 +536,10 @@ ipcRenderer.on("command", (event:any, command: any[]) => {
 
 ipcRenderer.on("fullscreen", (event: any, value: boolean) => {
     fullscreen = value;
+    $("#sound").find("#Fullscreen").attr("states", fullscreen? "Unfullscreen": "Fullscreen");
     console.log("fullscreen="+value)
 })
+
 
 ipcRenderer.on("screen", (event: any, value: [number, number]) => {
     screen_size = value;

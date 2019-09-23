@@ -1,6 +1,6 @@
 
 import path = require("path");
-import fs   = require("fs");
+import fs = require("fs");
 import yaml = require("js-yaml");
 
 import { scenario } from "./scenario/scenario";
@@ -13,8 +13,8 @@ class ScenarioPlayer {
     constructor() {
     }
 
-    receive_cmds() : Promise<any> {
-        return new Promise<any>( (resolve, reject)=>{
+    receive_cmds(): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
             electron.ipcMain.once("command", (event: any, name: string) => {
                 if (name == "")
                     this.title(event)
@@ -28,11 +28,11 @@ class ScenarioPlayer {
         });
     }
     receive_others() {
-        electron.ipcMain.on("set-variable", (event: any, name:string, value:string) => {
+        electron.ipcMain.on("set-variable", (event: any, name: string, value: string) => {
             this.scenario.variables[name] = value;
         })
     }
-    post_cmd(event: any, command: scenario.Command|string[]|void) {
+    post_cmd(event: any, command: scenario.Command | string[] | void) {
         if (command instanceof scenario.Scene) {
             let scene = command as scenario.Scene;
             event.reply("command", ["scene", scene.sound, scene.image]);
@@ -43,16 +43,16 @@ class ScenarioPlayer {
             event.reply("command", command)
         }
     }
-    exec_cmd(event: any, command: scenario.Command|string[]|void) : Promise<any> {
+    exec_cmd(event: any, command: scenario.Command | string[] | void): Promise<any> {
         this.post_cmd(event, command);
-        return this.receive_cmds() 
+        return this.receive_cmds()
     }
 
 
-    title(event: any) {
+    async title(event: any): Promise<any> {
         let title_img = this.scenario.get_image_path(this.scenario.config["image_map"]["title"], 0);
         if (this.scenario.config["modes"]) {
-            let options : {[key:string]: any}= {
+            let options: { [key: string]: any } = {
                 "location": this.scenario.config["screen"]["menu_location"],
                 "candidates": this.scenario.config["modes"],
                 "variable": "mode"
@@ -62,22 +62,20 @@ class ScenarioPlayer {
             options["size"] = this.scenario.config["screen"]["menu_size"];
             let scene = new scenario.Scene(null, title_img);
             let ask = new scenario.Ask(options);
-            return this.exec_cmd(event, ["title", this.window_title]).then((event: any) => {
-                return this.exec_cmd(event, scene);
-            }).then((event: any) => { 
-                return this.exec_cmd(event, ask);
-            }).then((event: any) => {
-                return this.execute_scenario(event);
-            })
-        }
+            event = await this.exec_cmd(event, ["title", this.window_title]);
+            event = await this.exec_cmd(event, scene);
+            event = await this.exec_cmd(event, ask);
+            return this.execute_scenario(event);
+        } else
+            return null;
     }
 
-    async execute_scenario(event: any) : Promise<any> {
+    async execute_scenario(event: any): Promise<any> {
         var gen = this.scenario.run();
-        for (let i : any = gen.next(); !i.done; i = gen.next()) {
-            let command : scenario.Command|void = i.value;
-            await this.exec_cmd(event, command).catch((reason:any) => {
-                console.log("rejected. event:"+reason)
+        for (let i: any = gen.next(); !i.done; i = gen.next()) {
+            let command: scenario.Command | void = i.value;
+            event = await this.exec_cmd(event, command).catch((reason: any) => {
+                console.log("rejected. event:" + reason)
                 this.scenario.force(Array.from(this.scenario.config["failure"] || []));
                 gen = this.scenario.loop(null);
             });
@@ -89,19 +87,19 @@ class ScenarioPlayer {
     run() {
         let filename = process.argv[process.argv.length - 1];
         let root_path = path.dirname(filename);
-        
-        console.log("Reading config ("+filename+")")
-        
+
+        console.log("Reading config (" + filename + ")")
+
         const yamlText = fs.readFileSync(filename, 'utf8')
         let config = yaml.safeLoad(yamlText);
-        
+
         this.scenario = new scenario.Scenario(root_path, config);
 
         let size = config["screen"]["size"];
         let w = size[0], h = size[1];
         let point = electron.screen.getCursorScreenPoint();
         let display = electron.screen.getDisplayNearestPoint(point);
-        
+
         // Create the browser window.
         this.screen = new electron.BrowserWindow({
             x: display.bounds.x + (display.bounds.width - w) / 2,
@@ -126,31 +124,31 @@ class ScenarioPlayer {
 let scenario_test = () => {
     let filename = process.argv[process.argv.length - 1];
     let root_path = path.dirname(filename);
-    console.log("Reading config ("+filename+")")
-    
+    console.log("Reading config (" + filename + ")")
+
     const yamlText = fs.readFileSync(filename, 'utf8')
     let config = yaml.safeLoad(yamlText);
-    
+
     let sc = new scenario.Scenario(root_path, config)
 
     sc.variables["mode"] = sc.config["modes"][sc.config["modes"].length - 1];
 
     for (let k in sc.config) {
-        console.log(" config."+k+": "+sc.config[k])
+        console.log(" config." + k + ": " + sc.config[k])
     }
     const g = sc.run();
     for (var i = g.next(); !i.done; i = g.next()) {
         let command = i.value;
-        if (command instanceof scenario.Scene){
+        if (command instanceof scenario.Scene) {
             let scene = command as scenario.Scene;
-            console.log("Scene : sounds="+scene.sound+", images="+scene.image);
+            console.log("Scene : sounds=" + scene.sound + ", images=" + scene.image);
         } else if (command instanceof scenario.Ask) {
             let ask = command as scenario.Ask;
-            console.log("Ask : options="+ask.options);
+            console.log("Ask : options=" + ask.options);
         }
     }
 }
 
 //scenario_test();
 let gui = new ScenarioPlayer();
-electron.app.on('ready', () => {gui.run()});
+electron.app.on('ready', () => { gui.run() });

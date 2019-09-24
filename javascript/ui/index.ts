@@ -42,30 +42,28 @@ class ImageViewer {
     private image_resource : HTMLImageElement | HTMLCanvasElement = null;
     private canvas: HTMLCanvasElement;
 
-    image_renderer(canvas: HTMLCanvasElement) {
-        let ctx = canvas.getContext('2d');
-        return (ev?: Event) => {
-            let dest_rate = canvas.width / canvas.height;
-            if (this.image_resource) {
-                let src_rate  = this.image_resource.width / this.image_resource.height;
-                if (src_rate > dest_rate) {
-                    let y = this.image_resource.height * canvas.width / this.image_resource.width;
-                    ctx.fillStyle = "rgb(0, 0, 0)";
-                    ctx.fillRect(0,                       0, canvas.width, (canvas.height - y) / 2);
-                    ctx.fillRect(0, (canvas.height + y) / 2, canvas.width, (canvas.height - y) / 2);
-                ctx.drawImage(this.image_resource, 0, 0, this.image_resource.width, this.image_resource.height, 0, (canvas.height - y) / 2, canvas.width, y);
-                } else {
-                    let x = this.image_resource.width * canvas.height / this.image_resource.height;
-                    ctx.fillStyle = "rgb(0, 0, 0)";
-                    ctx.fillRect(                     0, 0, (canvas.width - x) / 2, canvas.height);
-                    ctx.fillRect((canvas.width + x) / 2, 0, (canvas.width - x) / 2, canvas.height);
-                    ctx.drawImage(this.image_resource, 0, 0, this.image_resource.width, this.image_resource.height, (canvas.width - x) / 2, 0, x, canvas.height);
-                }
-            } else {
+    image_renderer() {
+        let ctx = this.canvas.getContext('2d');
+        let dest_rate = this.canvas.width / this.canvas.height;
+        if (this.image_resource) {
+            let src_rate  = this.image_resource.width / this.image_resource.height;
+            if (src_rate > dest_rate) {
+                let y = this.image_resource.height * this.canvas.width / this.image_resource.width;
                 ctx.fillStyle = "rgb(0, 0, 0)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillRect(0,                       0, this.canvas.width, (this.canvas.height - y) / 2);
+                ctx.fillRect(0, (this.canvas.height + y) / 2, this.canvas.width, (this.canvas.height - y) / 2);
+            ctx.drawImage(this.image_resource, 0, 0, this.image_resource.width, this.image_resource.height, 0, (this.canvas.height - y) / 2, this.canvas.width, y);
+            } else {
+                let x = this.image_resource.width * this.canvas.height / this.image_resource.height;
+                ctx.fillStyle = "rgb(0, 0, 0)";
+                ctx.fillRect(                     0, 0, (this.canvas.width - x) / 2, this.canvas.height);
+                ctx.fillRect((this.canvas.width + x) / 2, 0, (this.canvas.width - x) / 2, this.canvas.height);
+                ctx.drawImage(this.image_resource, 0, 0, this.image_resource.width, this.image_resource.height, (this.canvas.width - x) / 2, 0, x, this.canvas.height);
             }
-        };
+        } else {
+            ctx.fillStyle = "rgb(0, 0, 0)";
+            ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
     }
 
     constructor (canvas : HTMLCanvasElement) {
@@ -141,7 +139,7 @@ class ImageViewer {
     load (image_src: any) {
         if (!$(this.canvas).attr("observer")) {
             let canvas_observer = on_canvas_resize($(this.canvas), (elem)=>{
-                this.image_renderer(this.canvas)();
+                this.image_renderer();
             });
             $(this.canvas).attr("observer", 1);
         }
@@ -164,7 +162,7 @@ class ImageViewer {
         if (promise) {
             promise.then((canvas:HTMLCanvasElement)=> {
                 this.image_resource = canvas;
-                this.image_renderer(this.canvas)();    
+                this.image_renderer();    
             })
         } else {
             alert("Unknows image src="+image_src)
@@ -176,6 +174,7 @@ class AudioPlayer {
     private sound : JQuery<any>;
     private audio: HTMLAudioElement = null;
     private observer: MutationObserver = null;
+
     constructor(sound: JQuery<any>) {
         this.sound = sound;
     }
@@ -215,10 +214,18 @@ class AudioPlayer {
             let target = $(ev.target);
             target.css({ "color": "inherit", "background-color": "transparent" })
             if (ev.button == 0) {
-                let states : string = $(ev.target).attr("states");
-                cmd[states][2]();
+                (ev.target as {[key:string]:any}).trigger();
             }
-        })
+        });
+        // Binding trigger method to button DOM.
+        let button_ : {[key:string]: any} = button[0];
+        button_.trigger = function() {
+            let states = $(button).attr("states");
+            cmd[states][2]();
+        }
+        button_.trigger_force = function(states: string) {
+            cmd[states][2]();
+        }
         // Watching "state" attribute of the button.
         new MutationObserver((entries) => {
             for (let e of entries) {
@@ -298,13 +305,34 @@ class AudioPlayer {
         }
         this.observer = on_element_resize(this.sound, progress_size);
         progress_size();
+
+        $(window).off("keydown").on("keydown", (event: Event) => {
+            let ke = event as KeyboardEvent;
+            if (this.audio) {
+                if (ke.key == 'Enter') {
+                    ($("#sound").find("#Next")[0] as {[key:string]:any}).trigger();
+                } else if (ke.keyCode == 32) {
+                    ($("#sound").find("#Play")[0] as {[key:string]:any}).trigger();
+                } else if (ke.keyCode == 37) {
+                    ($("#sound").find("#Backward")[0] as {[key:string]:any}).trigger();
+                } else if (ke.keyCode == 39) {
+                    ($("#sound").find("#Forward")[0] as {[key:string]:any}).trigger();
+                } else if (ke.key == 'Backspace') {
+                    ($("#sound").find("#Cancel")[0] as {[key:string]:any}).trigger();
+                }
+            }
+            if (ke.key == 'Escape') {
+                ($("#sound").find("#Fullscreen")[0] as {[key:string]:any}).trigger_force("Unfullscreen");
+            }
+        });
+        
     }
     
     load(filename: string) {
         // Playing sound.
         if (filename) {
             this.audio = this.create_audio(filename);
-            let audio_rewind   = ()=>{ this.audio.currentTime = 0;}
+            let audio_rewind = ()=>{ this.audio.currentTime = 0;}
             let audio_rewind10 = ()=>{ this.audio.currentTime -= 10;}
             let audio_forward10 = ()=>{ this.audio.currentTime += 10;}
             let audio_forward   = ()=>{
@@ -323,15 +351,18 @@ class AudioPlayer {
                 ipcRenderer.send("terminate", command_name)
                 this.audio = null;
             }
+            let audio_play = () =>{this.audio.play()}
+            let audio_pause = () =>{this.audio.pause()}
             let set_fullscreen   = ()=>{ipcRenderer.send("fullscreen", true);}
             let set_unfullscreen = ()=>{ipcRenderer.send("fullscreen", false);}
-
+        
             let buttons: {
                 name: string, 
                 state: ()=>string, 
                 side:string, 
                 command: {[key: string]: [string, string, ()=>void]} 
-            }[] = [
+            }[] = 
+            [
                 {
                     name: "Previous", 
                     state: ()=>{ return "Previous";}, 
@@ -349,8 +380,8 @@ class AudioPlayer {
                     state: () => { return this.audio.paused ? "Play": "Paused" },
                     side: "left",
                     command: {
-                        "Pause": ["⏸", "Play", ()=>{this.audio.pause()}], 
-                        "Play": ["⏵", "Pause", ()=>{this.audio.play()}] 
+                        "Pause": ["⏸", "Play", audio_pause], 
+                        "Play": ["⏵", "Pause", audio_play] 
                     }
                 }, 
                 {
@@ -545,17 +576,6 @@ ipcRenderer.on("screen", (event: any, value: [number, number]) => {
     screen_size = value;
     console.log("screen="+value)
 })
-
-window.onkeydown = (event: KeyboardEvent) => {
-    if (event.key == 'Enter' && audio) {
-        audio.pause();
-        ipcRenderer.send("command", command_name);
-        audio = null;
-    }
-    if (event.key == 'Escape') {
-        ipcRenderer.send("fullscreen", false);
-    }
-}
 
 // Start communication between GUI frontend and backend.
 ipcRenderer.send("start");

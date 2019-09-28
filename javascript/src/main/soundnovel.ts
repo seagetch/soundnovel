@@ -5,7 +5,6 @@ import yaml = require("js-yaml");
 
 import { scenario } from "./scenario/scenario";
 import electron = require("electron")
-import { SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS } from "constants";
 
 class ScenarioPlayer {
     private scenario: scenario.Scenario;
@@ -63,8 +62,9 @@ class ScenarioPlayer {
         }
     }
     exec_cmd(event: any, command: scenario.Command | string[] | void): Promise<any> {
+        let result = this.receive_cmds()
         this.post_cmd(event, command);
-        return this.receive_cmds()
+        return result;
     }
 
 
@@ -83,6 +83,7 @@ class ScenarioPlayer {
             let ask = new scenario.Ask(options);
             event = await this.exec_cmd(event, ["title", this.window_title]);
             event = await this.exec_cmd(event, scene);
+            console.log("title scene done.")
             event = await this.exec_cmd(event, ask);
             return event;
         } else
@@ -135,7 +136,7 @@ class ScenarioPlayer {
         this.screen.setMenuBarVisibility(false);
         this.screen.setResizable(false);
         // and load the index.html of the app.
-        this.screen.loadFile('./ui/index.html');
+        this.screen.loadFile('./index.html');
         this.window_title = path.basename(path.dirname(filename));
         this.receive_others();
         let doit = async() => {

@@ -1,0 +1,23 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "module": "es2015",
+        "target": "es5",
+        "lib": ["es2015", "dom", "es2015.iterable"],
+        "moduleResolution": "node",
+        "baseUrl": "./",                          /* Base directory to resolve non-absolute module names. */
+        "paths": {                                /* A series of entries which re-map imports to lookup locations relative to the 'baseUrl'. */
+            "@": ["./"],
+            "*": ["./types/*"]
+        },
+        "typeRoots": [
+            "node_modules/@types", 
+            "./types"
+        ]
+
+    },
+    "include": [
+        "./*",
+        "@*"
+    ],
+}

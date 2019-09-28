@@ -1,46 +1,48 @@
 // webpack.config.js
 const webpack = require("webpack");
 var nodeExternals = require('webpack-node-externals');
-
-module_rules = {
-    rules: [{
-        test: /\.ts$/,
-        exclude: /node_modules/,
-        loader: 'ts-loader',
-    },
-    {
-        test: /\.js$/,
-        exclude: /node_modules/,
-        loader: 'babel-loader',
-    }]
-}
+const VueLoaderPlugin = require('vue-loader/lib/plugin');
 
 module.exports = [
 {
     mode: "development",
-    entry: __dirname + "/soundnovel.ts",
+    entry: __dirname + "/src/main/soundnovel.ts",
     output: { 
         path: __dirname, 
         filename: "soundnovel.js"
     },
     target: "electron-main",
-    module: module_rules,
-    externals: [nodeExternals()],
-    resolve: {
-        extensions: [".ts"]
+    module: {
+        rules: [
+            { test: /\.ts$/, exclude: /node_modules/, loader: 'ts-loader'},
+            { test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader'}
+        ]
     },
+    resolve: {
+        extensions: ['.ts']
+    },
+    externals: [nodeExternals()]
 },
 {
     mode: "development",
-    entry: __dirname + "/ui/index.ts",
+    entry: __dirname + "/src/ui/index.ts",
     output: {
-        path: __dirname + "/ui", 
+        path: __dirname, 
         filename: "index.js"
     },
     target: "electron-renderer",
-    module: module_rules,
+    module: {
+        rules: [
+            { test: /\.ts$/, exclude: /node_modules/, loader: 'ts-loader', options: { appendTsSuffixTo: [/\.vue$/] }},
+            { test: /\.js$/, exclude: /node_modules/, loader: 'babel-loader',},
+            { test: /\.vue$/, loader: 'vue-loader'}
+        ]
+    },
     resolve: {
-        extensions: [".ts"]
-    }
+        extensions: ['.ts']
+    },
+    plugins: [
+        new VueLoaderPlugin()
+    ]
 }
 ];

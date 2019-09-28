@@ -11,12 +11,12 @@
         "sourceMap": true,
         "typeRoots": [
             "node_modules/@types", 
-            "scenario"
+            "src/scenario"
         ]
     },
     "include": [
-        "./*",
-        "ui/*",
-        "scenario/**/*"
-    ]
+        "./src/main/*.ts",
+        "./src/main/scenario/*.ts", "./src/main/soundnovel.d.ts", "./src/main/soundnovel.ts"
+    ],
+    "exclude": ["node_modules"]
 }

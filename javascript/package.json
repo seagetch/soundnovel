@@ -4,7 +4,7 @@
   "description": "Simple sound novel player for sound-artworks.",
   "main": "soundnovel.js",
   "dependencies": {
-    "electron": "^6.0.9",
+    "electron": "^9.1.0",
     "fs": "0.0.1-security",
     "glob": "^7.1.4",
     "jquery": "^3.4.1",
